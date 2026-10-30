@@ -1,0 +1,62 @@
+name: e10
+description: e10 School Systems by BeeSoft Hive
+publish_to: 'none'
+
+version: 1.0.32+49
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.9
+  carousel_slider: ^5.1.2
+
+  http: ^1.5.0
+  flutter_dotenv: ^5.2.1
+
+  shared_preferences: ^2.5.3
+  path_provider: ^2.1.5
+
+  connectivity_plus: ^7.3.1
+  package_info_plus: ^10.2.1
+
+  geocoding: ^4.0.0
+  geolocator: ^14.0.2
+
+  permission_handler: ^12.0.1
+
+  url_launcher: ^6.3.2
+
+  qr_flutter: ^4.1.0
+  image_picker: ^1.1.2
+  # Direct deps only so main() can switch Android to the system Photo Picker.
+  image_picker_android: ^0.8.13+23
+  image_picker_platform_interface: ^2.11.1
+  google_fonts: ^8.2.1
+  open_filex: ^5.0.0
+  web: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+# Pinned below objective_c's native-assets rewrite: that hook fails to compile
+# on Windows when any ancestor path contains a space (dart-lang/native#2993),
+# which breaks `flutter run` entirely on this machine's user profile path.
+dependency_overrides:
+  path_provider_foundation: 2.4.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/
+    # Inter + Plus Jakarta Sans weights bundled so google_fonts never
+    # downloads them at startup (see main.dart).
+    - assets/google_fonts/
+    - .env

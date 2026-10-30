@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "e10-flutter-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8082", "--directory", "C:/Users/Developer 2/Desktop/e10/e10/e10/build/web"],
+      "port": 8082
+    },
+    {
+      "name": "e10-stub-test",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["C:/Users/DEVELO~1/AppData/Local/Temp/claude/C--Users-Developer-2-Desktop-e10/0a303e35-af9a-46e6-a9b2-0022b49954fb/scratchpad/stub_api.py", "C:/Users/DEVELO~1/AppData/Local/Temp/claude/C--Users-Developer-2-Desktop-e10/0a303e35-af9a-46e6-a9b2-0022b49954fb/scratchpad/web", "8095"],
+      "port": 8095
+    }
+  ]
+}

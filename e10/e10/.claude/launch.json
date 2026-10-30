@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "e10-flutter-web",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-d",
+        "chrome",
+        "--web-hostname=127.0.0.1",
+        "--web-port=8081"
+      ],
+      "port": 8081
+    },
+    {
+      "name": "e10-web-server",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-d",
+        "web-server",
+        "--web-hostname=127.0.0.1",
+        "--web-port=8082"
+      ],
+      "port": 8082
+    }
+  ]
+}
