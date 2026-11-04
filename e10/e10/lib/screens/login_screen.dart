@@ -10,7 +10,6 @@ import '../models.dart';
 import '../school_store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import 'admin_forms.dart';
 import '../widgets/popups.dart';
 import 'select_child_screen.dart';
 
@@ -382,394 +381,66 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   // ==============================================================
-  // FORGOT PASSWORD
+  // FORGOT / RESET PASSWORD
   // ==============================================================
   //
-  // POST:
-  // /api/auth/password/forgot
-  //
-  // Body:
-  // {
-  //   "email": "user@example.com"
-  // }
-  //
-  // ==============================================================
+  // Same two steps as the website:
+  //   1. POST /auth/password/forgot {email}            → a 6-digit code
+  //   2. POST /auth/password/reset  {email, code,
+  //        password, password_confirmation}
+  // The old dialog sent `token` (the server wants `code`) and asked for a
+  // fresh code on every tap, replacing the one the user had just typed.
 
-  Future<Map<String, dynamic>>
-      _forgotPasswordRequest(
-    String email,
-  ) async {
-    final response = await http.post(
-      _forgotPasswordUrl,
-      headers: _jsonHeaders,
-      body: jsonEncode({
-        'email': email,
-      }),
-    );
-
+  static Future<Map<String, dynamic>> _postJson(Uri url, Map<String, dynamic> body) async {
+    final response = await http
+        .post(url, headers: _jsonHeaders, body: jsonEncode(body))
+        .timeout(const Duration(seconds: 20));
     dynamic decoded;
-
     try {
-      decoded = jsonDecode(
-        response.body,
-      );
+      decoded = jsonDecode(response.body);
     } catch (_) {
-      decoded = {
-        'message': response.body,
-      };
+      decoded = null;
     }
-
-    if (decoded is Map<String, dynamic>) {
-      return {
-        ...decoded,
-        '_status': response.statusCode,
-      };
-    }
-
     return {
-      'message': response.body,
+      if (decoded is Map) ...Map<String, dynamic>.from(decoded),
       '_status': response.statusCode,
     };
   }
 
-  // ==============================================================
-  // RESET PASSWORD
-  // ==============================================================
-  //
-  // POST:
-  // /api/auth/password/reset
-  //
-  // Body:
-  // {
-  //   "email": "...",
-  //   "token": "...",
-  //   "password": "...",
-  //   "password_confirmation": "..."
-  // }
-  //
-  // ==============================================================
-
-  Future<Map<String, dynamic>>
-      _resetPasswordRequest({
-    required String email,
-    required String token,
-    required String password,
-    required String passwordConfirmation,
-  }) async {
-    final response = await http.post(
-      _resetPasswordUrl,
-      headers: _jsonHeaders,
-      body: jsonEncode({
-        'email': email,
-        'token': token,
-        'password': password,
-        'password_confirmation':
-            passwordConfirmation,
-      }),
-    );
-
-    dynamic decoded;
-
-    try {
-      decoded = jsonDecode(
-        response.body,
-      );
-    } catch (_) {
-      decoded = {
-        'message': response.body,
-      };
+  /// The server's first field error, else its message.
+  static String? _apiError(Map<String, dynamic> body) {
+    final errors = body['errors'];
+    if (errors is Map) {
+      for (final value in errors.values) {
+        if (value is List && value.isNotEmpty) return '${value.first}';
+        if (value is String && value.isNotEmpty) return value;
+      }
     }
-
-    if (decoded is Map<String, dynamic>) {
-      return {
-        ...decoded,
-        '_status': response.statusCode,
-      };
-    }
-
-    return {
-      'message': response.body,
-      '_status': response.statusCode,
-    };
+    final message = body['message']?.toString();
+    return message == null || message.isEmpty ? null : message;
   }
-
-  // ==============================================================
-  // FORGOT / RESET PASSWORD DIALOG
-  // ==============================================================
 
   Future<void> _showForgotPasswordDialog() async {
-    final emailController =
-        TextEditingController(
-      text: _email.text.trim(),
-    );
-
-    final tokenController =
-        TextEditingController();
-
-    final passwordController =
-        TextEditingController();
-
-    final confirmController =
-        TextEditingController();
-
-    final busy =
-        ValueNotifier<bool>(false);
-
-    await showDialog<void>(
+    final email = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title:
-              const Text('Reset password'),
-          content:
-              ValueListenableBuilder<bool>(
-            valueListenable: busy,
-            builder:
-                (context, isBusy, child) {
-              return SingleChildScrollView(
-                child: Column(
-                  mainAxisSize:
-                      MainAxisSize.min,
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .stretch,
-                  children: [
-                    TextField(
-                      controller:
-                          emailController,
-                      enabled: !isBusy,
-                      keyboardType:
-                          TextInputType
-                              .emailAddress,
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Email address',
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    TextField(
-                      controller:
-                          tokenController,
-                      enabled: !isBusy,
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Token / reset code',
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    TextField(
-                      controller:
-                          passwordController,
-                      enabled: !isBusy,
-                      obscureText: true,
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'New password',
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    TextField(
-                      controller:
-                          confirmController,
-                      enabled: !isBusy,
-                      obscureText: true,
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Confirm password',
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                closeRoute(
-                  dialogContext,
-                );
-              },
-              child:
-                  const Text('Close'),
-            ),
-
-            FilledButton(
-              onPressed: () async {
-                if (busy.value) {
-                  return;
-                }
-
-                final messenger = ScaffoldMessenger.maybeOf(context);
-
-                final email =
-                    emailController.text
-                        .trim();
-
-                if (email.isEmpty) {
-                  showSnack(context, 'Enter your email address.');
-
-                  return;
-                }
-
-                busy.value = true;
-
-                try {
-                  // =================================================
-                  // STEP 1
-                  // SEND RESET REQUEST
-                  // =================================================
-
-                  final forgot =
-                      await _forgotPasswordRequest(
-                    email,
-                  );
-
-                  final forgotStatus =
-                      forgot['_status']
-                          as int? ??
-                      0;
-
-                  final forgotMessage =
-                      forgot['message']
-                          ?.toString() ??
-                      forgot['info']
-                          ?.toString();
-
-                  if (forgotStatus < 200 ||
-                      forgotStatus >= 300) {
-                    if (!mounted || messenger == null || !messenger.mounted) return;
-
-                    showSnack(context, forgotMessage ??
-                              'Unable to request password reset.');
-
-                    return;
-                  }
-
-                  if (!mounted || messenger == null || !messenger.mounted) return;
-
-                  // =================================================
-                  // STEP 2
-                  // IF USER HAS NOT ENTERED RESET DETAILS YET,
-                  // KEEP DIALOG OPEN SO THEY CAN ENTER TOKEN.
-                  // =================================================
-
-                  final token =
-                      tokenController.text
-                          .trim();
-
-                  final password =
-                      passwordController.text
-                          .trim();
-
-                  final confirm =
-                      confirmController.text
-                          .trim();
-
-                  if (token.isEmpty &&
-                      password.isEmpty &&
-                      confirm.isEmpty) {
-                    if (!mounted || !messenger.mounted) return;
-
-                    showSnack(context, forgotMessage ??
-                              'If that email exists, a reset code or link was sent.');
-
-                    return;
-                  }
-
-                  // =================================================
-                  // STEP 3
-                  // VALIDATE PASSWORD
-                  // =================================================
-
-                  if (token.isEmpty) {
-                    showSnack(context, 'Enter the reset token or code.');
-
-                    return;
-                  }
-
-                  if (password.isEmpty ||
-                      confirm.isEmpty) {
-                    showSnack(context, 'Enter the new password and confirmation.');
-
-                    return;
-                  }
-
-                  if (password !=
-                      confirm) {
-                    showSnack(context, 'Passwords do not match.');
-
-                    return;
-                  }
-
-                  // =================================================
-                  // STEP 4
-                  // RESET PASSWORD
-                  // =================================================
-
-                  final reset =
-                      await _resetPasswordRequest(
-                    email: email,
-                    token: token,
-                    password: password,
-                    passwordConfirmation:
-                        confirm,
-                  );
-
-                  final resetStatus =
-                      reset['_status']
-                          as int? ??
-                      0;
-
-                  final resetMessage =
-                      reset['message']
-                          ?.toString() ??
-                      reset['info']
-                          ?.toString();
-
-                  if (!mounted || !messenger.mounted || !dialogContext.mounted) return;
-
-                  if (resetStatus >= 200 &&
-                      resetStatus < 300) {
-                    closeRoute(
-                      dialogContext,
-                    );
-
-                    showSnack(context, resetMessage ??
-                              'Password reset successfully.');
-                  } else {
-                    showSnack(context, resetMessage ??
-                              'Password reset failed.');
-                  }
-                } finally {
-                  busy.value = false;
-                }
-              },
-              child:
-                  const Text('Send'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => _ResetPasswordDialog(
+        initialEmail: _email.text.trim().contains('@') ? _email.text.trim() : '',
+        forgotUrl: _forgotPasswordUrl,
+        resetUrl: _resetPasswordUrl,
+        post: _postJson,
+        errorOf: _apiError,
+      ),
     );
-
-    disposeAfterClose([emailController, tokenController, passwordController, confirmController, busy]);
+    if (!mounted || email == null) return;
+    // Password changed: put them on the password form with their email filled.
+    setState(() {
+      _staffUseOtc = false;
+      _codeSent = false;
+      _email.text = email;
+      _password.clear();
+      _error = null;
+      _info = 'Password reset. Sign in with your new password.';
+    });
   }
 
   // ==============================================================
@@ -1297,7 +968,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             ),
 
                             TextButton(
-                              onPressed: _staffUseOtc ? null : _showForgotPasswordDialog,
+                              onPressed: _busy ? null : _showForgotPasswordDialog,
                               child: Text(
                                 'Forgot Password?',
                                 style:
@@ -1718,6 +1389,215 @@ class _TeacherKindChip
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ResetPasswordDialog extends StatefulWidget {
+  const _ResetPasswordDialog({
+    required this.initialEmail,
+    required this.forgotUrl,
+    required this.resetUrl,
+    required this.post,
+    required this.errorOf,
+  });
+
+  final String initialEmail;
+  final Uri forgotUrl;
+  final Uri resetUrl;
+  final Future<Map<String, dynamic>> Function(Uri, Map<String, dynamic>) post;
+  final String? Function(Map<String, dynamic>) errorOf;
+
+  @override
+  State<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+}
+
+class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
+  late final _email = TextEditingController(text: widget.initialEmail);
+  final _code = TextEditingController();
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _codeSent = false;
+  bool _busy = false;
+  bool _obscure = true;
+  String? _error;
+  String? _info;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _code.dispose();
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  bool get _emailOk => RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.text.trim());
+
+  Future<void> _sendCode() async {
+    if (!_emailOk) {
+      setState(() => _error = 'Enter the email address on your account.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final body = await widget.post(widget.forgotUrl, {'email': _email.text.trim()});
+      if (!mounted) return;
+      final status = body['_status'] as int? ?? 0;
+      if (status < 200 || status >= 300) {
+        setState(() => _error = widget.errorOf(body) ?? 'Could not send a reset code.');
+        return;
+      }
+      // When the school has no email delivery yet, the server returns the
+      // code itself (the website shows it as a "dev code").
+      final data = body['data'];
+      final otc = (data is Map ? data['otc'] : body['otc'])?.toString().replaceAll(RegExp(r'\D'), '') ?? '';
+      setState(() {
+        _codeSent = true;
+        _code.text = otc.length == 6 ? otc : '';
+        _info = otc.length == 6
+            ? 'Email delivery is not connected yet, so your code is $otc. Choose a new password below.'
+            : (body['message']?.toString() ?? 'A 6-digit reset code has been sent to ${_email.text.trim()}.');
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Cannot reach the school server. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reset() async {
+    final code = _code.text.replaceAll(RegExp(r'\D'), '');
+    final password = _password.text;
+    String? problem;
+    if (code.length != 6) {
+      problem = 'Enter the 6-digit code from your email.';
+    } else if (password.length < 8) {
+      problem = 'Use at least 8 characters for the new password.';
+    } else if (password != _confirm.text) {
+      problem = 'The two passwords do not match.';
+    }
+    if (problem != null) {
+      setState(() => _error = problem);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final body = await widget.post(widget.resetUrl, {
+        'email': _email.text.trim(),
+        'code': code,
+        'password': password,
+        'password_confirmation': _confirm.text,
+      });
+      if (!mounted) return;
+      final status = body['_status'] as int? ?? 0;
+      if (status >= 200 && status < 300) {
+        Navigator.of(context).pop(_email.text.trim());
+        return;
+      }
+      setState(() => _error = widget.errorOf(body) ?? 'That code is invalid or has expired.');
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Cannot reach the school server. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    InputDecoration deco(String label, {Widget? suffix}) => InputDecoration(labelText: label, suffixIcon: suffix);
+    return AlertDialog(
+      title: const Text('Reset your password'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              _codeSent
+                  ? 'Enter the 6-digit code sent to ${_email.text.trim()}, and choose a new password.'
+                  : "Enter the email on your account and we'll send you a code to reset your password.",
+              style: AppText.body(size: 13, color: AppColors.slate500),
+            ),
+            const SizedBox(height: 12),
+            if (_error != null) ...[
+              Text(_error!, style: AppText.body(size: 13, weight: FontWeight.w600, color: AppColors.rose)),
+              const SizedBox(height: 8),
+            ],
+            if (_info != null && _codeSent) ...[
+              Text(_info!, style: AppText.body(size: 12, weight: FontWeight.w600, color: AppColors.emerald)),
+              const SizedBox(height: 8),
+            ],
+            TextField(
+              controller: _email,
+              enabled: !_busy && !_codeSent,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              decoration: deco('Email address'),
+              onSubmitted: (_) => _codeSent ? null : _sendCode(),
+            ),
+            if (_codeSent) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _code,
+                enabled: !_busy,
+                keyboardType: TextInputType.number,
+                autofillHints: const [AutofillHints.oneTimeCode],
+                maxLength: 6,
+                decoration: deco('6-digit code'),
+              ),
+              TextField(
+                controller: _password,
+                enabled: !_busy,
+                obscureText: _obscure,
+                autofillHints: const [AutofillHints.newPassword],
+                decoration: deco(
+                  'New password (at least 8 characters)',
+                  suffix: IconButton(
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                    icon: Icon(_obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _confirm,
+                enabled: !_busy,
+                obscureText: _obscure,
+                decoration: deco('Confirm new password'),
+                onSubmitted: (_) => _reset(),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                            _codeSent = false;
+                            _code.clear();
+                            _error = null;
+                            _info = null;
+                          }),
+                  child: const Text('Use a different email or send a new code'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: _busy ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: _busy ? null : (_codeSent ? _reset : _sendCode),
+          child: Text(_busy ? (_codeSent ? 'Resetting…' : 'Sending…') : (_codeSent ? 'Reset password' : 'Send reset code')),
+        ),
+      ],
     );
   }
 }
