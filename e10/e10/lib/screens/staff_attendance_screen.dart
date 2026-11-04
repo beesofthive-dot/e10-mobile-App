@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
 import '../core/config/api_config.dart';
+import '../feeding.dart' show plural;
 import '../school_store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -124,6 +125,48 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
     if (saved == true) await _load();
   }
 
+  bool _marking = false;
+  int _markDone = 0;
+
+  /// Everyone who clocks in but has no record for the day is submitted as
+  /// Absent ("No palm scan"), so the day tallies on the website too.
+  Future<void> _markNotScanned() async {
+    final people = _clockers ?? SchoolScope.of(context).teachers;
+    final missing = [for (final t in people) if (_byStaff[t.id] == null) t];
+    if (missing.isEmpty) return;
+    final day = _isToday ? 'today' : formatStamp(_dayKey);
+    final ok = await showAppConfirm(
+      context: context,
+      title: 'Mark ${plural(missing.length, 'staff member')} absent?',
+      message: '${missing.map((t) => t.name).take(6).join(', ')}${missing.length > 6 ? ' and ${missing.length - 6} more' : ''} '
+          'did not clock in $day. They will be saved as Absent with the note “No palm scan”, and it shows on the website.'
+          '${_isToday ? ' Do this at the end of the school day, once everyone who came has scanned.' : ''}',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Mark absent',
+    );
+    if (!ok || !mounted) return;
+    setState(() {
+      _marking = true;
+      _markDone = 0;
+    });
+    final result = await SchoolScope.of(context).markNotScannedAbsent(
+      [for (final t in missing) ('staff', t.id)],
+      _dayKey,
+      onProgress: (done) {
+        if (mounted) setState(() => _markDone = done);
+      },
+    );
+    if (!mounted) return;
+    setState(() => _marking = false);
+    showSnack(
+      context,
+      result.failed == 0
+          ? '${plural(result.marked, 'staff member')} marked absent'
+          : '${result.marked} marked absent, ${result.failed} not saved. ${result.error}',
+    );
+    await _load();
+  }
+
   Future<void> _pickDay() async {
     final picked = await showDatePicker(
       context: context,
@@ -220,6 +263,16 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                     icon: const Icon(Icons.edit_calendar_rounded, size: 18),
                     label: const Text('Mark staff attendance'),
                   ),
+                  if (outCount > 0) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _marking || _loading ? null : _markNotScanned,
+                      icon: const Icon(Icons.person_off_outlined, size: 18),
+                      label: Text(_marking
+                          ? 'Marking absent… $_markDone of $outCount'
+                          : 'Mark ${plural(outCount, 'staff member')} not clocked in as absent'),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   if (people.isEmpty)
                     WhiteCard(

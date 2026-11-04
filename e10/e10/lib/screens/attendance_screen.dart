@@ -10,6 +10,7 @@ import '../school_store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/dash_cards.dart';
+import '../widgets/popups.dart' show showAppConfirm;
 import 'admin_forms.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -344,6 +345,69 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       widget.role.canSubmitAttendance;
 
   // ============================================================
+  // MARK NOT-SCANNED DAY STUDENTS ABSENT (admin)
+  // ============================================================
+
+  bool _markingAbsent = false;
+
+  /// Admins (who may mark attendance by hand, as on the website): day
+  /// students with no record today — they never scanned at the gate — are
+  /// submitted as Absent ("No palm scan") so the day tallies everywhere.
+  /// Boarders are left to the class teacher's boarding register.
+  bool get _canMarkAbsent =>
+      widget.role.isAdminPortal && (widget.user?.permissions.contains('attendance.mark') ?? false);
+
+  Future<void> _markStudentsAbsent({String classId = '', String className = ''}) async {
+    final store = SchoolScope.of(context);
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    setState(() => _markingAbsent = true);
+    final missing = await store.dayStudentsNotScanned(today, classId: classId);
+    if (!mounted) return;
+    setState(() => _markingAbsent = false);
+    if (missing == null) {
+      showSnack(context, 'Could not read today’s attendance. Check the connection and try again.');
+      return;
+    }
+    if (missing.isEmpty) {
+      showSnack(context, 'Every day student${className.isEmpty ? '' : ' in $className'} has a record today.');
+      return;
+    }
+    final names = missing.map((s) => s.name).take(6).join(', ');
+    final ok = await showAppConfirm(
+      context: context,
+      title: 'Mark ${missing.length} day student${missing.length == 1 ? '' : 's'} absent?',
+      message: '$names${missing.length > 6 ? ' and ${missing.length - 6} more' : ''} did not scan in today'
+          '${className.isEmpty ? '' : ' ($className)'}. They will be saved as Absent with the note “No palm scan”, '
+          'and it shows on the website and to parents. Do this at the end of the school day. Boarders are not included.',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Mark absent',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _markingAbsent = true);
+    final result = await store.markNotScannedAbsent([for (final s in missing) ('student', s.id)], today);
+    if (!mounted) return;
+    setState(() => _markingAbsent = false);
+    showSnack(
+      context,
+      result.failed == 0
+          ? '${result.marked} student${result.marked == 1 ? '' : 's'} marked absent'
+          : '${result.marked} marked absent, ${result.failed} not saved. ${result.error}',
+    );
+    await _loadLiveAttendance();
+  }
+
+  Widget _markAbsentButton({String classId = '', String className = ''}) => OutlinedButton.icon(
+        onPressed: _markingAbsent ? null : () => _markStudentsAbsent(classId: classId, className: className),
+        icon: _markingAbsent
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.person_off_outlined, size: 18),
+        label: Text(className.isEmpty
+            ? 'Mark day students not scanned today as absent'
+            : 'Mark not-scanned day students absent'),
+      );
+
+  // ============================================================
   // CLASS PICKER
   // ============================================================
 
@@ -387,6 +451,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   onRetry: _loadLiveAttendance,
                 ),
 
+              if (_canMarkAbsent) ...[
+                _markAbsentButton(),
+                const SizedBox(height: 8),
+              ],
               if (widget.onOpenStaff != null) ...[
                 NavListRow(
                   title: 'Teacher attendance',
@@ -525,6 +593,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+
+        if (!canEdit && _canMarkAbsent && !_boardersOnly)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+            child: _markAbsentButton(
+              classId: store.classes.where((c) => c.name == _klass).firstOrNull?.id ?? '',
+              className: _klass,
             ),
           ),
 

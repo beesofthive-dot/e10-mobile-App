@@ -3772,6 +3772,64 @@ class SchoolStore extends ChangeNotifier {
     }
   }
 
+  /// Submits everyone in [people] — (`staff` or `student`, id) with no
+  /// attendance record for [date] — as Absent with the note "No palm scan",
+  /// through `POST /attendance/manual`, the same call as the website's "Mark
+  /// staff". Without `force` the server never overwrites a real palm scan.
+  /// One request at a time so a large school isn't rate-limited.
+  Future<({int marked, int failed, String error})> markNotScannedAbsent(
+    List<(String, String)> people,
+    String date, {
+    void Function(int done)? onProgress,
+  }) async {
+    var marked = 0, failed = 0, done = 0;
+    var error = '';
+    for (final (type, id) in people) {
+      try {
+        await ApiClient.instance.post(ApiConfig.manualAttendancePath, {
+          'person_type': type,
+          if (type == 'staff') 'staff_id': id else 'student_id': id,
+          'date': date,
+          'status': 'absent',
+          'note': 'No palm scan',
+        });
+        marked++;
+      } on ApiException catch (e) {
+        failed++;
+        error = e.message;
+      } catch (_) {
+        failed++;
+        error = 'Could not reach the school server.';
+      }
+      onProgress?.call(++done);
+    }
+    if (marked > 0) unawaited(refreshNoticesAndAttendance());
+    return (marked: marked, failed: failed, error: error);
+  }
+
+  /// Active day students with no attendance record on [date] (palm scan or
+  /// marked). Boarders are left out: the class teacher marks them on the
+  /// boarding register. Null when today's records could not be read.
+  Future<List<Student>?> dayStudentsNotScanned(String date, {String classId = ''}) async {
+    final rows = await _tableOrNull('/attendance', query: {
+      'date': date,
+      'person_type': 'student',
+      if (classId.isNotEmpty) 'class_id': classId,
+    });
+    if (rows == null) return null;
+    final seen = {
+      for (final r in rows) '${r['student_id'] ?? (r['student'] is Map ? (r['student'] as Map)['id'] : '')}',
+    };
+    return [
+      for (final s in students)
+        if (!s.boarder &&
+            s.status.toLowerCase() == 'active' &&
+            (classId.isEmpty || s.classId == classId) &&
+            !seen.contains(s.id))
+          s,
+    ];
+  }
+
   /// Every staff attendance row for [day] (yyyy-mm-dd), for the admin's
   /// teacher-attendance view; null when the request failed.
   Future<List<Map<String, dynamic>>?> staffAttendanceFor(String day) =>
