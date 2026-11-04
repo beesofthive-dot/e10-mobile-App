@@ -59,6 +59,20 @@ void main() {
       expect(summary.late, 1);
     });
 
+    test('left early is its own bucket, never absent (as on the website)', () {
+      final store = SchoolStore();
+      store.tables['attendance'] = [
+        {'student_id': 'kid-1', 'status': 'early_departure', 'date': '2026-09-01'},
+        {'student_id': 'kid-1', 'status': 'authorized_absence', 'date': '2026-09-02'},
+      ];
+      final summary = store.attendanceTermSummaryFor('kid-1');
+      expect(summary.leftEarly, 1);
+      expect(summary.absent, 0);
+      expect(summary.excused, 1);
+      expect(summary.onTime, 0);
+      expect(summary.present, 1); // attended, though not "Present"
+    });
+
     test('empty history reports zero totals, not a crash', () {
       final store = SchoolStore();
       final summary = store.attendanceTermSummaryFor('no-such-kid');

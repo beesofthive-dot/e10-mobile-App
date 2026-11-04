@@ -254,7 +254,7 @@ class _AdminHomeState extends State<AdminHome> {
                                 ? 'On roll'
                                 : 'of ${_comma(teachers)} today',
                         hintColor: AppColors.orange,
-                        onTap: () => widget.onNav(AppScreen.adminTeachers),
+                        onTap: () => widget.onNav(PlanAccess.allows(AppScreen.staffAttendance) ? AppScreen.staffAttendance : AppScreen.adminTeachers),
                       ),
                       if (PlanAccess.allows(AppScreen.adminFinance))
                       DashCard(
@@ -310,6 +310,15 @@ class _AdminHomeState extends State<AdminHome> {
                       ),
                     ],
                   ),
+                  if (PlanAccess.allows(AppScreen.staffAttendance)) ...[
+                    const SizedBox(height: 16),
+                    StaffClockInsCard(
+                      rows: store.staffAttendanceToday(),
+                      nameOf: store.staffNameOf,
+                      staffTotal: teachers,
+                      onOpen: () => widget.onNav(AppScreen.staffAttendance),
+                    ),
+                  ],
                   if (PlanAccess.allows(AppScreen.adminFinance)) ...[
                   const SizedBox(height: 16),
                   MoneyDashboardCard(user: widget.user),
@@ -439,6 +448,103 @@ class _AdminHomeState extends State<AdminHome> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Admin home: who has clocked in today by palm scan (or been marked by the
+/// office), live from the 30-second refresh — a short summary, then the
+/// latest scans, then a link to the full staff attendance page.
+class StaffClockInsCard extends StatelessWidget {
+  const StaffClockInsCard({
+    super.key,
+    required this.rows,
+    required this.nameOf,
+    required this.staffTotal,
+    required this.onOpen,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final String Function(Map<String, dynamic>) nameOf;
+  final int staffTotal;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final inRows = rows.where((r) => SchoolStore.clockOf(r['check_in_at']).isNotEmpty).toList();
+    final late = inRows.where((r) => '${r['status']}'.toLowerCase() == 'late').length;
+    final out = rows.where((r) => SchoolStore.clockOf(r['check_out_at']).isNotEmpty).length;
+    final notYet = (staffTotal - inRows.length).clamp(0, staffTotal);
+    final latest = rows.take(5).toList();
+    return WhiteCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.back_hand_rounded, size: 18, color: AppColors.emerald),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Staff clock-ins today', style: AppText.body(size: 15, weight: FontWeight.w800))),
+              TextButton(onPressed: onOpen, child: const Text('See all')),
+            ],
+          ),
+          Text(
+            inRows.isEmpty
+                ? 'No one has scanned in yet. Clock-ins appear here within a minute of a palm scan.'
+                : '${inRows.length} of $staffTotal staff in · $late late · $out clocked out · $notYet not in yet',
+            style: AppText.body(size: 12, color: AppSurface.muted(context)),
+          ),
+          const SizedBox(height: 8),
+          for (final r in latest)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: AppSurface.line(context)))),
+              child: Row(
+                children: [
+                  InitialsAvatar(name: nameOf(r), tone: Tone.emerald),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(nameOf(r), maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.body(size: 13, weight: FontWeight.w700)),
+                        Text(SchoolStore.isPalmRecord(r) ? 'Palm scan' : 'Marked by the office',
+                            style: AppText.body(size: 11, color: AppColors.slate500)),
+                      ],
+                    ),
+                  ),
+                  _ClockChip(row: r),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClockChip extends StatelessWidget {
+  const _ClockChip({required this.row});
+
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    final inAt = SchoolStore.clockOf(row['check_in_at']);
+    final outAt = SchoolStore.clockOf(row['check_out_at']);
+    final status = '${row['status']}'.toLowerCase();
+    final (String label, Color color) = status == 'absent'
+        ? ('Absent', AppColors.rose)
+        : outAt.isNotEmpty
+            ? ('Out · $outAt', AppColors.slate500)
+            : status == 'late'
+                ? ('Late · $inAt', AppColors.honeyDark)
+                : (inAt.isEmpty ? 'Marked' : 'In · $inAt', AppColors.emerald);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+      child: Text(label, style: AppText.body(size: 11, weight: FontWeight.w700, color: color)),
     );
   }
 }

@@ -277,6 +277,7 @@ enum AppScreen {
   adminManage,
   adminRoles,
   adminTeachers,
+  subjectAssignments,
   adminAccountants,
   adminParents,
   adminClasses,
@@ -390,6 +391,7 @@ class AttendanceTermSummary {
     required this.absent,
     required this.excused,
     required this.totalDays,
+    this.leftEarly = 0,
   });
 
   final int onTime;
@@ -398,8 +400,12 @@ class AttendanceTermSummary {
   final int excused;
   final int totalDays;
 
-  /// Total days marked present, whether on time or late.
-  int get present => onTime + late;
+  /// Days the child came in but left early (`early_departure`). The website
+  /// counts these in none of Present/Absent/Late/Excused, so neither do we.
+  final int leftEarly;
+
+  /// Days the child attended at all: on time, late or left early.
+  int get present => onTime + late + leftEarly;
 
   double get presentPercent => totalDays == 0 ? 0 : (present / totalDays) * 100;
 }

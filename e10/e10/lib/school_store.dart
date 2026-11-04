@@ -201,10 +201,10 @@ class TeacherReport {
     required this.subject,
     required this.status,
     this.type = TeacherReportType.classReport,
-    this.year = '2025/26',
-    this.term = 'Term 1',
+    this.year = '',
+    this.term = '',
     this.klass = '',
-    this.section = 'A',
+    this.section = '',
     this.submittedAt = '',
     this.studentCount = 0,
     this.examName = '',
@@ -1343,7 +1343,7 @@ class SchoolStore extends ChangeNotifier {
 
   Future<List<Map<String, dynamic>>> fetchPlatformSchools() async {
     try {
-      return _listOf(await ApiClient.instance.get(ApiConfig.platformSchoolsPath, query: const {'per_page': '100'}));
+      return await _allPages(ApiConfig.platformSchoolsPath, const {});
     } catch (_) {}
     return const [];
   }
@@ -1383,7 +1383,7 @@ class SchoolStore extends ChangeNotifier {
 
   Future<List<Map<String, dynamic>>> fetchPlatformSignupRequests() async {
     try {
-      return _listOf(await ApiClient.instance.get(ApiConfig.platformSignupRequestsPath, query: const {'per_page': '100'}));
+      return await _allPages(ApiConfig.platformSignupRequestsPath, const {});
     } catch (_) {}
     return const [];
   }
@@ -1402,7 +1402,7 @@ class SchoolStore extends ChangeNotifier {
 
   Future<List<Map<String, dynamic>>> fetchPlatformContactMessages() async {
     try {
-      return _listOf(await ApiClient.instance.get(ApiConfig.platformContactMessagesPath, query: const {'per_page': '100'}));
+      return await _allPages(ApiConfig.platformContactMessagesPath, const {});
     } catch (_) {}
     return const [];
   }
@@ -1673,12 +1673,30 @@ class SchoolStore extends ChangeNotifier {
     return 'Term 1';
   }
 
+  /// An academic year's label. The API calls it `year` ("2025/2026"), not
+  /// `name` — reading `name` left the year blank everywhere.
+  String _yearLabelOf(Map row) => _asString(row['year'] ?? row['name']);
+
   String get currentYearLabel {
     for (final row in tables['academic_years'] ?? const <Map<String, dynamic>>[]) {
-      if ('${row['id']}' == academicYearId) return _asString(row['name']);
+      if ('${row['id']}' == academicYearId) return _yearLabelOf(row);
     }
     final years = tables['academic_years'] ?? const <Map<String, dynamic>>[];
-    if (years.isNotEmpty) return _asString(years.first['name']);
+    if (years.isNotEmpty) return _yearLabelOf(years.first);
+    return '';
+  }
+
+  /// The school's academic years, newest first as the API sends them.
+  List<String> get yearLabels => [
+        for (final row in tables['academic_years'] ?? const <Map<String, dynamic>>[])
+          if (_yearLabelOf(row).isNotEmpty) _yearLabelOf(row),
+      ];
+
+  /// Year label for an academic year id ('' when unknown).
+  String yearLabelFor(String id) {
+    for (final row in tables['academic_years'] ?? const <Map<String, dynamic>>[]) {
+      if ('${row['id']}' == id) return _yearLabelOf(row);
+    }
     return '';
   }
 
@@ -1771,11 +1789,25 @@ class SchoolStore extends ChangeNotifier {
       ..sort((a, b) => a.name.compareTo(b.name));
   }
 
+  /// Every page of a list (the server caps a page at 100), throwing like a
+  /// plain GET so callers keep their own error messages.
+  Future<List<Map<String, dynamic>>> _allPages(String path, Map<String, String> query, {Duration timeout = const Duration(seconds: 20)}) async {
+    final full = {...query, 'per_page': '100'};
+    final first = await ApiClient.instance.get(path, query: full, timeout: timeout);
+    final rows = [..._listOf(_unwrap(first) ?? first)];
+    final meta = first is Map && first['meta'] is Map ? first['meta'] as Map : null;
+    final last = int.tryParse('${meta?['last_page'] ?? 1}') ?? 1;
+    for (var page = 2; page <= last && page <= 30; page++) {
+      final more = await ApiClient.instance.get(path, query: {...full, 'page': '$page'}, timeout: timeout);
+      rows.addAll(_listOf(_unwrap(more) ?? more));
+    }
+    return rows;
+  }
+
   Future<({List<Map<String, dynamic>> rows, String error})> fetchSubmissions(String assignmentId) async {
     if (!ApiSession.instance.isSignedIn) return (rows: const <Map<String, dynamic>>[], error: 'Sign in to mark work.');
     try {
-      final rows = _listOf(_unwrap(await ApiClient.instance.get('/assignment-submissions',
-          query: {'assignment_id': assignmentId, 'per_page': '500'}, timeout: const Duration(seconds: 20))));
+      final rows = await _allPages('/assignment-submissions', {'assignment_id': assignmentId});
       return (rows: rows, error: '');
     } on ApiException catch (e) {
       return (rows: const <Map<String, dynamic>>[], error: e.message);
@@ -1866,8 +1898,7 @@ class SchoolStore extends ChangeNotifier {
   Future<({List<Map<String, dynamic>> rows, String error})> fetchExamResults(String examId) async {
     if (!ApiSession.instance.isSignedIn) return (rows: const <Map<String, dynamic>>[], error: 'Sign in to enter marks.');
     try {
-      final rows = _listOf(_unwrap(await ApiClient.instance.get('/exam-results',
-          query: {'exam_id': examId, 'per_page': '500'}, timeout: const Duration(seconds: 20))));
+      final rows = await _allPages('/exam-results', {'exam_id': examId});
       return (rows: rows, error: '');
     } on ApiException catch (e) {
       return (rows: const <Map<String, dynamic>>[], error: e.message);
@@ -2077,6 +2108,7 @@ class SchoolStore extends ChangeNotifier {
         if (visible(n)) n,
       if (role == Role.teacher) ..._arrivalNotices.values,
       if (role.isAdminPortal) ..._paymentNotices.values,
+      if (role.isAdminPortal) ..._staffClockNotices.values,
       if (role == Role.parent || role == Role.teacher) ..._homeworkNotices.values,
     ];
   }
@@ -2116,7 +2148,7 @@ class SchoolStore extends ChangeNotifier {
         classId: _studentClassId(row),
         userId: _studentUserId(row),
         avatar: name.isEmpty ? 'C' : name,
-        attendance: 90,
+        attendance: _attendancePercent('${row['id'] ?? ''}'),
         fees: 0,
         outstanding: _outstandingFor('${row['id'] ?? ''}'),
         status: _asString(row['status']).isEmpty ? 'active' : _asString(row['status']),
@@ -2263,20 +2295,22 @@ class SchoolStore extends ChangeNotifier {
     final hasTermData = termId != null && termId.isNotEmpty && all.any((row) => _asString(row['academic_term_id'] ?? row['term_id']).isNotEmpty);
     final rows = hasTermData ? all.where((row) => _asString(row['academic_term_id'] ?? row['term_id']) == termId).toList() : all;
 
-    var onTime = 0, late = 0, absent = 0, excused = 0;
+    var onTime = 0, late = 0, absent = 0, excused = 0, leftEarly = 0;
     for (final row in rows) {
       final status = _asString(row['status']).toLowerCase();
       if (status == 'late') {
         late++;
       } else if (status == 'excused' || status == 'authorized_absence' || status == 'excuse') {
         excused++;
-      } else if (status == 'absent' || status == 'early_departure') {
+      } else if (status == 'absent') {
         absent++;
+      } else if (status == 'early_departure') {
+        leftEarly++;
       } else {
         onTime++;
       }
     }
-    return AttendanceTermSummary(onTime: onTime, late: late, absent: absent, excused: excused, totalDays: rows.length);
+    return AttendanceTermSummary(onTime: onTime, late: late, absent: absent, excused: excused, totalDays: rows.length, leftEarly: leftEarly);
   }
 
   /// True when the child is in crèche / KG / nursery — the same class-name
@@ -3619,8 +3653,8 @@ class SchoolStore extends ChangeNotifier {
 
   void markNoticeRead(String id) {
     var changed = false;
-    if (_homeworkNotices.containsKey(id)) _rememberLocalRead([id]);
-    for (final n in [...notifications, ..._arrivalNotices.values, ..._paymentNotices.values, ..._homeworkNotices.values]) {
+    if (_homeworkNotices.containsKey(id) || _staffClockNotices.containsKey(id)) _rememberLocalRead([id]);
+    for (final n in [...notifications, ..._arrivalNotices.values, ..._paymentNotices.values, ..._homeworkNotices.values, ..._staffClockNotices.values]) {
       if (n.id == id && n.unread) {
         n.unread = false;
         changed = true;
@@ -3635,8 +3669,8 @@ class SchoolStore extends ChangeNotifier {
   }
 
   Future<String> markAllNoticesRead() async {
-    _rememberLocalRead(_homeworkNotices.keys);
-    for (final n in [...notifications, ..._arrivalNotices.values, ..._paymentNotices.values, ..._homeworkNotices.values]) {
+    _rememberLocalRead([..._homeworkNotices.keys, ..._staffClockNotices.keys]);
+    for (final n in [...notifications, ..._arrivalNotices.values, ..._paymentNotices.values, ..._homeworkNotices.values, ..._staffClockNotices.values]) {
       n.unread = false;
     }
     notifyListeners();
@@ -3672,6 +3706,71 @@ class SchoolStore extends ChangeNotifier {
   /// Keyed by id so a notice keeps its read state across refreshes.
   final Map<String, AppNotification> _arrivalNotices = {};
   String _arrivalNoticesDay = '';
+
+  /// Today's staff attendance rows (palm clock-ins/outs or marked by the
+  /// office), newest scan first. Filled by the 30-second live refresh, which
+  /// reads `/attendance?date=today` for admins — staff rows included.
+  List<Map<String, dynamic>> staffAttendanceToday() {
+    final today = _today();
+    final rows = [
+      for (final row in tables['attendance'] ?? const <Map<String, dynamic>>[])
+        if ('${row['date'] ?? ''}'.startsWith(today) &&
+            (_asString(row['staff_id']).isNotEmpty || _asString(row['person_type']) == 'staff'))
+          row,
+    ];
+    String last(Map<String, dynamic> r) => _asString(r['check_out_at']).isNotEmpty ? _asString(r['check_out_at']) : _asString(r['check_in_at']);
+    rows.sort((a, b) => last(b).compareTo(last(a)));
+    return rows;
+  }
+
+  /// Name for a staff attendance row: the row's own staff, else the directory.
+  String staffNameOf(Map<String, dynamic> row) {
+    final staff = row['staff'];
+    final name = staff is Map ? _asString(staff['full_name'] ?? staff['name']) : '';
+    if (name.isNotEmpty) return name;
+    final id = _asString(row['staff_id']);
+    for (final t in [...teachers, ...accountants]) {
+      if (t.id == id) return t.name;
+    }
+    return 'Staff member';
+  }
+
+  /// "Staff clocked in" notices for admins, one per palm clock-in/out today.
+  final Map<String, AppNotification> _staffClockNotices = {};
+  String _staffClockDay = '';
+
+  void _rebuildStaffClockNotices() {
+    if (_activeRole?.isAdminPortal != true) return;
+    final today = _today();
+    if (_staffClockDay != today) {
+      _staffClockNotices.clear();
+      _staffClockDay = today;
+    }
+    void put(String id, String title, String text, String time, String type) {
+      _staffClockNotices[id] = AppNotification(
+        id: id,
+        type: type,
+        title: title,
+        text: text,
+        time: time,
+        icon: type == 'attendance_checked_in' ? 'check' : 'calendar',
+        color: 'emerald',
+        unread: _staffClockNotices[id]?.unread ?? !(_localRead?.contains(id) ?? false),
+      );
+    }
+
+    for (final row in staffAttendanceToday()) {
+      final name = staffNameOf(row);
+      final how = isPalmRecord(row) ? 'by palm scan' : 'by the office';
+      if (clockOf(row['check_in_at']).isNotEmpty) {
+        final late = '${row['status']}'.toLowerCase() == 'late' ? ' (late)' : '';
+        put('staff-in-${row['id']}', '$name clocked in', '$name clocked in at ${clockOf(row['check_in_at'])}$late $how.', '${row['check_in_at']}', 'attendance_checked_in');
+      }
+      if (clockOf(row['check_out_at']).isNotEmpty) {
+        put('staff-out-${row['id']}', '$name clocked out', '$name clocked out at ${clockOf(row['check_out_at'])} $how.', '${row['check_out_at']}', 'attendance_checked_out');
+      }
+    }
+  }
 
   /// Every staff attendance row for [day] (yyyy-mm-dd), for the admin's
   /// teacher-attendance view; null when the request failed.
@@ -4365,7 +4464,10 @@ class SchoolStore extends ChangeNotifier {
       if (att != null && att.isNotEmpty) {
         final before = jsonEncode(tables['attendance'] ?? const []);
         mergeAttendanceRows(att);
-        if (jsonEncode(tables['attendance'] ?? const []) != before) changed = true;
+        if (jsonEncode(tables['attendance'] ?? const []) != before) {
+          changed = true;
+          _rebuildStaffClockNotices();
+        }
       }
       if (!_cashierSession && await rebuildHomeworkNotices()) changed = true;
       if (changed) notifyListeners();
@@ -4796,7 +4898,7 @@ class SchoolStore extends ChangeNotifier {
       schoolId: _asString(row['school_id'] ?? (row['school'] is Map ? (row['school'] as Map)['id'] : '')),
       parentId: _asString(row['parent_id'] ?? (row['parent'] is Map ? (row['parent'] as Map)['id'] : '')),
       academicYear: row['academic_year'] is Map
-          ? _asString((row['academic_year'] as Map)['name'] ?? (row['academic_year'] as Map)['label'])
+          ? _asString((row['academic_year'] as Map)['year'] ?? (row['academic_year'] as Map)['name'] ?? (row['academic_year'] as Map)['label'])
           : _asString(row['academic_year'] ?? row['academic_year_label']),
       term: row['term'] is Map
           ? _asString((row['term'] as Map)['name'] ?? (row['term'] as Map)['label'])
@@ -5374,6 +5476,7 @@ class SchoolStore extends ChangeNotifier {
         final got = rows[i];
         if (got != null) tables[_extraTablePaths[paths[i]]!] = got;
       }
+      _rebuildDepartments();
       notifyListeners();
       return;
     }
@@ -5394,6 +5497,7 @@ class SchoolStore extends ChangeNotifier {
       if (got != null) tables[entries[i].value] = got;
     }
     if (entries.any((e) => e.key == '/enrollments')) _rebuildStudents();
+    _rebuildDepartments();
     _extrasLoadedAt = DateTime.now();
     notifyListeners();
   }
@@ -5510,6 +5614,26 @@ class SchoolStore extends ChangeNotifier {
       return {'student_id': child.id};
     }
     return null;
+  }
+
+  /// `/departments` arrives with the extra tables, after [applyBootstrap] has
+  /// run, so both rebuild this list.
+  void _rebuildDepartments() {
+    departments
+      ..clear()
+      ..addAll([
+        for (final row in tables['departments'] ?? const <Map<String, dynamic>>[])
+          NamedRecord(
+            id: '${row['id']}',
+            name: '${row['name'] ?? ''}',
+            detail: '${row['description'] ?? ''}',
+            extra: '${row['status'] ?? ''}',
+            link: [
+              for (final head in _listOf(row['heads']))
+                '${head['full_name'] ?? ''}${head['is_main'] == true || head['is_main'] == 1 ? '' : ' (assistant)'}',
+            ].where((name) => name.isNotEmpty).join(', '),
+          ),
+      ]);
   }
 
   /// Rebuilds [students] from the cached `tables['students']` rows.
@@ -5631,21 +5755,7 @@ class SchoolStore extends ChangeNotifier {
       ..clear()
       ..addAll(_todayRollMarks());
 
-    departments
-      ..clear()
-      ..addAll([
-        for (final row in tables['departments'] ?? const <Map<String, dynamic>>[])
-          NamedRecord(
-            id: '${row['id']}',
-            name: '${row['name'] ?? ''}',
-            detail: '${row['description'] ?? ''}',
-            extra: '${row['status'] ?? ''}',
-            link: [
-              for (final head in _listOf(row['heads']))
-                '${head['full_name'] ?? ''}${head['is_main'] == true || head['is_main'] == 1 ? '' : ' (assistant)'}',
-            ].where((name) => name.isNotEmpty).join(', '),
-          ),
-      ]);
+    _rebuildDepartments();
 
     teachers
       ..clear()
@@ -5802,6 +5912,11 @@ class SchoolStore extends ChangeNotifier {
             klass: row['class'] is Map
                 ? _classLabel(Map<String, dynamic>.from(row['class'] as Map))
                 : (row['student'] is Map ? _studentClassName(Map<String, dynamic>.from(row['student'] as Map)) : ''),
+            // The report card's own term and year, so the admin's year/term
+            // filters match it (they used to be fixed at "2025/26 Term 1").
+            term: row['academic_term'] is Map ? _asString((row['academic_term'] as Map)['name']) : '',
+            year: row['academic_term'] is Map ? yearLabelFor(_asString((row['academic_term'] as Map)['academic_year_id'])) : '',
+            section: row['class'] is Map ? _asString((row['class'] as Map)['stream']) : '',
             submittedAt: '${row['created_at'] ?? ''}',
           ),
         ...keptSubjectRecords,
@@ -6081,7 +6196,7 @@ class SchoolStore extends ChangeNotifier {
       final termMap = _mapOf(row['academic_term']);
       final term = _asString(termMap['name']);
       final yearMap = _mapOf(termMap['academic_year']);
-      final year = _asString(yearMap['name']);
+      final year = yearMap.isNotEmpty ? _yearLabelOf(yearMap) : yearLabelFor(_asString(termMap['academic_year_id']));
       final published = row['published'] == true || _asString(row['published_at']).isNotEmpty;
       var classScore = 0;
       var examScore = 0;
@@ -6393,7 +6508,7 @@ class SchoolStore extends ChangeNotifier {
     if (rows.isEmpty) return 0;
     final present = rows.where((row) {
       final status = _asString(row['status']).toLowerCase();
-      return status == 'present' || status == 'late';
+      return status == 'present' || status == 'late' || status == 'early_departure';
     }).length;
     return ((present / rows.length) * 100).round();
   }
@@ -6567,9 +6682,12 @@ class SchoolStore extends ChangeNotifier {
 
   String _attendanceUi(String status) {
     final value = status.toLowerCase();
+    // Same buckets as the website's attendance summary: excused stays
+    // excused and left-early is its own status, not "absent".
     if (value == 'late') return 'late';
-    if (value == 'absent' || value == 'early_departure') return 'absent';
-    if (value == 'excused' || value == 'authorized_absence' || value == 'excuse') return 'absent';
+    if (value == 'absent') return 'absent';
+    if (value == 'early_departure') return 'left_early';
+    if (value == 'excused' || value == 'authorized_absence' || value == 'excuse') return 'excused';
     return 'present';
   }
 
@@ -6741,10 +6859,20 @@ class SchoolStore extends ChangeNotifier {
   }
 
   Future<bool> saveAttendance(String klass, Map<String, String> attendance) async {
-    rollMarks.addAll(attendance);
-    notifyListeners();
-    if (!ApiSession.instance.isSignedIn || academicYearId == null) return true;
-    return _mutate(() async {
+    // Never report a roll as saved unless the server has it: this used to
+    // return "saved" when the school year hadn't loaded, so the app showed
+    // marks the database and website never got.
+    if (!ApiSession.instance.isSignedIn) {
+      syncError = 'Sign in to submit attendance.';
+      notifyListeners();
+      return false;
+    }
+    if (academicYearId == null || academicYearId!.isEmpty) {
+      syncError = 'The school year has not loaded yet. Pull down to refresh, then submit again.';
+      notifyListeners();
+      return false;
+    }
+    final ok = await _mutate(() async {
       final byClass = <String, List<Map<String, String>>>{};
       for (final entry in attendance.entries) {
         Student? student;
@@ -6777,11 +6905,16 @@ class SchoolStore extends ChangeNotifier {
         });
       }
     });
+    if (ok) {
+      rollMarks.addAll(attendance);
+      notifyListeners();
+    }
+    return ok;
   }
 
   static String sectionOf(String klass) {
     final match = RegExp(r'([A-C])$').firstMatch(klass.trim());
-    return match?.group(1) ?? 'A';
+    return match?.group(1) ?? '';
   }
 
   int studentsIn(String klass) => students.where((s) => s.klass == klass).length;

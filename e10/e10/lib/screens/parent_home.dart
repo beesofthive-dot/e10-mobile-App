@@ -62,7 +62,7 @@ class _AttendanceGrid extends StatelessWidget {
           AttendanceStatGrid(
             totalLabel: '${summary.totalDays} days recorded this term',
             stats: [
-              (label: 'Present', value: summary.present, icon: Icons.check_circle_rounded, color: AppColors.emerald),
+              (label: 'Present', value: summary.onTime, icon: Icons.check_circle_rounded, color: AppColors.emerald),
               (label: 'Absent', value: summary.absent, icon: Icons.cancel_rounded, color: AppColors.rose),
               (label: 'Late', value: summary.late, icon: Icons.timer_outlined, color: AppColors.amber),
               (label: 'Excused', value: summary.excused, icon: Icons.event_busy_rounded, color: AppColors.blue),

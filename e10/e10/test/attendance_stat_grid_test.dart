@@ -43,7 +43,9 @@ void main() {
     expect(find.text('Absent'), findsOneWidget);
     expect(find.text('Late'), findsOneWidget);
     expect(find.text('Excused'), findsOneWidget);
-    // Present = on-time + late = 2; excused must not be folded into absent.
-    expect(find.text('2'), findsOneWidget);
+    // Same buckets as the website: Present is on-time only, Late on its own,
+    // and excused is not folded into absent — one of each here.
+    expect(find.text('1'), findsNWidgets(4));
+    expect(find.text('2'), findsNothing);
   });
 }

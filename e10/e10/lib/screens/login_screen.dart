@@ -43,7 +43,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _obscure = true;
   bool _busy = false;
   bool _codeSent = false;
-  bool _staffUseOtc = false;
+  // Staff sign in with a one-time code by default, same as the website;
+  // password stays one tap away.
+  bool _staffUseOtc = true;
 
   String? _error;
   String? _info;
@@ -176,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
     if (_staffUseOtc) {
       if (_codeSent) return _code.text.trim().isEmpty ? 'Enter the one-time code.' : null;
-      return _email.text.trim().isEmpty ? 'Enter the staff email address.' : null;
+      return _email.text.trim().isEmpty ? 'Enter your email or phone number.' : null;
     }
     if (_email.text.trim().isEmpty) return 'Enter the email address.';
     if (_password.text.isEmpty) return 'Enter the password.';
@@ -802,7 +804,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   String get _buttonLabel {
     if (_busy) {
-      if (_isParent &&
+      if ((_isParent || _staffUseOtc) &&
           !_codeSent) {
         return 'Sending code...';
       }
@@ -815,6 +817,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           ? 'Let’s go in'
           : 'Send my code';
     }
+
+    if (_staffUseOtc && !_codeSent) return 'Send my code';
 
     return 'Let’s go in';
   }
@@ -1174,16 +1178,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         const SizedBox(height: 22),
 
                         _UnderlineField(
-                          label:
-                              'EMAIL ADDRESS',
-                          controller:
-                              _email,
-                          keyboard:
-                              TextInputType
-                                  .emailAddress,
-                          enabled:
-                              !_busy,
+                          label: _staffUseOtc ? 'EMAIL OR PHONE' : 'EMAIL ADDRESS',
+                          controller: _email,
+                          keyboard: _staffUseOtc ? TextInputType.text : TextInputType.emailAddress,
+                          enabled: !_busy && !(_staffUseOtc && _codeSent),
                         ),
+                        if (_staffUseOtc && !_codeSent) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Enter the phone or email the school has for you, and we’ll send it a one-time code.',
+                            style: AppText.body(size: 11, color: AppColors.slate500),
+                          ),
+                        ],
 
                         const SizedBox(
                           height: 22,
@@ -1195,6 +1201,26 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             controller: _code,
                             keyboard: TextInputType.number,
                             enabled: !_busy,
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () {
+                                      FocusManager.instance.primaryFocus?.unfocus();
+                                      setState(() {
+                                        _codeSent = false;
+                                        _code.clear();
+                                        _info = null;
+                                        _error = null;
+                                      });
+                                    },
+                              child: Text(
+                                'Use a different email or phone',
+                                style: AppText.body(size: 12, weight: FontWeight.w600, color: AppColors.honey),
+                              ),
+                            ),
                           ),
                         ] else if (!_staffUseOtc) ...[
                           _UnderlineField(
@@ -1360,7 +1386,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             onTap: () =>
                                 _showNote(
                               'Help',
-                              'Parents sign in with telephone number and one-time code (OTC). Teachers and admins use email and password.',
+                              'Parents sign in with telephone number and one-time code (OTC). Staff sign in with email or phone and a one-time code, or email and password.',
                             ),
                           ),
                         ],

@@ -191,7 +191,7 @@ class _SubmitFormState extends State<_SubmitForm> {
   final _pending = TextEditingController();
   final _recommend = TextEditingController();
   final _comments = TextEditingController();
-  final _examName = TextEditingController(text: 'Mid-term');
+  final _examName = TextEditingController();
   late final TextEditingController _examDate;
 
   @override
@@ -200,10 +200,13 @@ class _SubmitFormState extends State<_SubmitForm> {
     final now = DateTime.now();
     final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     _examDate = TextEditingController(text: '${now.day} ${months[now.month - 1]} ${now.year}');
-    _year = now.month >= 9 ? '${now.year}/${(now.year + 1) % 100}' : '${now.year - 1}/${now.year % 100}';
-    _term = 'Term 1';
+    // The school's own current year and term from the API.
+    final years = widget.store.yearLabels;
+    final current = widget.store.currentYearLabel;
+    _year = current.isNotEmpty ? current : (years.firstOrNull ?? '');
+    _term = widget.store.currentTermLabel;
     _klass = widget.store.classNames.firstOrNull ?? '';
-    _subject = widget.store.subjectNames.firstOrNull ?? 'Mathematics';
+    _subject = widget.store.subjectNames.firstOrNull ?? '';
   }
 
   @override
@@ -236,8 +239,8 @@ class _SubmitFormState extends State<_SubmitForm> {
           style: AppText.display(size: 18),
         ),
         const SizedBox(height: 12),
-        AdminDropdown(label: 'Academic Year', value: _year, items: const ['2025/26', '2026/27'], onChanged: (v) => setState(() => _year = v)),
-        AdminDropdown(label: 'Term', value: _term, items: const ['Term 1', 'Term 2', 'Term 3'], onChanged: (v) => setState(() => _term = v)),
+        AdminDropdown(label: 'Academic Year', value: _year, items: {...widget.store.yearLabels, if (_year.isNotEmpty) _year}.toList(), onChanged: (v) => setState(() => _year = v)),
+        AdminDropdown(label: 'Term', value: _term, items: {...widget.store.termLabels, _term}.toList(), onChanged: (v) => setState(() => _term = v)),
         AdminDropdown(label: 'Class', value: _klass, items: widget.store.classNames, onChanged: (v) => setState(() => _klass = v)),
         AdminDropdown(label: 'Subject', value: _subject, items: widget.store.subjectNames, onChanged: (v) => setState(() => _subject = v)),
         _Locked('Teacher / class teacher', widget.teacher),

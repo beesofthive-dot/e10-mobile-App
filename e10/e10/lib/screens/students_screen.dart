@@ -30,13 +30,13 @@ class _StudentsScreenState extends State<StudentsScreen> {
     if (v == 'absent' || v == 'excused' || v == 'authorized_absence') {
       return Tone.rose;
     }
-    if (v == 'late') return Tone.honey;
+    if (v == 'late' || v == 'left_early') return Tone.honey;
     return Tone.slate;
   }
 
   String _rollLabel(String roll) {
     final v = roll.trim().isEmpty ? '—' : roll;
-    return v.toUpperCase();
+    return v.replaceAll('_', ' ').toUpperCase();
   }
 
   @override
@@ -333,7 +333,7 @@ void openAdmitStudentForm(
                       name: name.text.trim(),
                       klass: klass,
                       avatar: existing?.avatar ?? '',
-                      attendance: existing?.attendance ?? 100,
+                      attendance: existing?.attendance ?? 0,
                       fees: existing?.fees ?? 0,
                       outstanding: existing?.outstanding ?? 0,
                       status: status,

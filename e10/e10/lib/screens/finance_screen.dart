@@ -281,7 +281,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final failed = incoming.where((t) => t.status == 'failed').length;
     final pending = incoming.where((t) => t.status.contains('pend')).length;
     final collectedValue = _ghs(collected);
-    final table = _tab == 'in' ? incoming : outgoing;
+    final table = incoming;
     final volume = _volume(filtered);
     final methods = _byMethod(filtered);
     final wide = MediaQuery.sizeOf(context).width >= 720;
@@ -472,10 +472,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
                         selected: _tab == 'in',
                         onTap: () => setState(() => _tab = 'in')),
                     TabChip(
-                        label: 'Payouts out',
-                        selected: _tab == 'out',
-                        onTap: () => setState(() => _tab = 'out')),
-                    TabChip(
                         label: 'Bills',
                         selected: _tab == 'bills',
                         onTap: () => setState(() => _tab = 'bills')),
@@ -488,11 +484,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        switch (_tab) {
-                          'in' => 'Payments',
-                          'out' => 'Payouts',
-                          _ => 'Bills'
-                        },
+                        _tab == 'in' ? 'Payments' : 'Bills',
                         style:
                             AppText.display(size: 18, weight: FontWeight.w700),
                       ),
@@ -500,9 +492,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       if (_tab == 'bills')
                         ..._billsTable(store)
                       else if (table.isEmpty)
-                        financeEmptyRow(_tab == 'in'
-                            ? 'No payments match these filters'
-                            : 'No payouts match these filters')
+                        financeEmptyRow('No payments match these filters')
                       else ...[
                         _TableHead(),
                         for (final t in table.take(40))

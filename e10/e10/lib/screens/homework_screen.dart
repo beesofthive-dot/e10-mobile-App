@@ -35,7 +35,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
   final _title = TextEditingController();
   final _instructions = TextEditingController();
   final _deadline = TextEditingController();
-  final _maxScore = TextEditingController(text: '20');
+  final _maxScore = TextEditingController(text: '100');
   bool _saving = false;
 
   /// homework | assignment | exercise | class_test
@@ -402,7 +402,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
       const SizedBox(height: 14),
       if (isTest) ...[
         label('Marked out of'),
-        TextField(controller: _maxScore, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: deco('e.g. 20')),
+        TextField(controller: _maxScore, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: deco('e.g. 100')),
         const SizedBox(height: 14),
         label('Test date'),
         TextField(controller: _deadline, decoration: deco('YYYY-MM-DD')),

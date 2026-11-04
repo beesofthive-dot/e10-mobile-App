@@ -107,23 +107,47 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       }
       final now = DateTime.now();
       final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-      final response = await http
-          .get(
-            // Today only: without a date the API returns the whole history and
-            // old days' statuses overwrote today's roll.
-            _api('attendance').replace(queryParameters: {'date': today, 'person_type': 'student', 'per_page': '500'}),
-            headers: await _headers(),
-          )
+      final store = SchoolScope.of(context);
+      final classId = _boardersOnly ? '' : (store.classes.where((c) => c.name == _klass).firstOrNull?.id ?? '');
+      // Today only (without a date the API returns the whole history and old
+      // days' statuses overwrote today's roll), and the chosen class only —
+      // the same query the website's attendance page sends.
+      final query = {
+        'date': today,
+        'person_type': 'student',
+        if (classId.isNotEmpty) 'class_id': classId,
+        'per_page': '100',
+      };
+      final firstPage = _api('attendance').replace(queryParameters: query);
+      final headers = await _headers();
+      var response = await http
+          .get(firstPage, headers: headers)
           .timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
-
-        if (decoded is Map<String, dynamic>) {
-          _applyApiAttendance(decoded);
-        } else if (decoded is List) {
-          _applyApiRows(decoded);
+        final rows = <dynamic>[];
+        if (decoded is List) {
+          rows.addAll(decoded);
+        } else if (decoded is Map<String, dynamic>) {
+          final first = decoded['attendance'] ?? decoded['data'] ?? decoded['rows'] ?? decoded['records'];
+          if (first is List) rows.addAll(first);
+          // The server caps a page, so a school with more scans than one
+          // page used to show only the first page's students in the counts.
+          final meta = decoded['meta'];
+          final lastPage = meta is Map ? int.tryParse('${meta['last_page'] ?? 1}') ?? 1 : 1;
+          for (var page = 2; page <= lastPage && page <= 50; page++) {
+            response = await http
+                .get(_api('attendance').replace(queryParameters: {...query, 'page': '$page'}), headers: headers)
+                .timeout(const Duration(seconds: 20));
+            if (response.statusCode != 200) break;
+            final more = jsonDecode(response.body);
+            final list = more is Map ? (more['data'] ?? more['attendance']) : more;
+            if (list is List) rows.addAll(list);
+          }
         }
+        if (!mounted) return;
+        _applyApiRows(rows);
 
         if (!mounted) return;
 
@@ -159,23 +183,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
-  void _applyApiAttendance(Map<String, dynamic> data) {
-    final rows =
-        data['attendance'] ??
-        data['data'] ??
-        data['rows'] ??
-        data['records'];
-
-    if (rows is List) {
-      _applyApiRows(rows);
-    }
-  }
-
   void _applyApiRows(List rows) {
     final store = SchoolScope.of(context);
 
     final apiMarks = <String, String>{};
     final apiRows = <Map<String, dynamic>>[];
+    // Only this roster's students: today's rows for other classes used to be
+    // added to the counts too, so they never matched the website.
+    final rosterIds = {for (final s in _roster(store)) s.id};
+    _todayRows.clear();
 
     for (final item in rows) {
       if (item is! Map) continue;
@@ -187,7 +203,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           row['studentId']?.toString() ??
           (row['student'] is Map ? row['student']['id']?.toString() : null);
 
-      if (studentId == null || studentId.isEmpty) {
+      if (studentId == null || studentId.isEmpty || !rosterIds.contains(studentId)) {
         continue;
       }
 
@@ -203,12 +219,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       store.mergeAttendanceRows(apiRows);
     }
 
-    if (apiMarks.isEmpty) return;
-
     if (!mounted) return;
 
     setState(() {
-      _marks.addAll(apiMarks);
+      if (_canSubmit) {
+        // Keep the teacher's unsaved boarder marks; the server wins for
+        // anyone it already has a row for.
+        _marks.addAll(apiMarks);
+      } else {
+        // Viewers see exactly what the server has for today — no defaults.
+        _marks = apiMarks;
+      }
     });
 
     // Keep SchoolStore in sync when possible.
@@ -278,10 +299,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return 'excused';
     }
 
-    if (status == 'absent' ||
-        status == 'early_departure') {
-      return 'absent';
-    }
+    if (status == 'absent') return 'absent';
+
+    if (status == 'early_departure' || status == 'left_early') return 'left_early';
 
     return 'present';
   }
@@ -311,9 +331,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }).toList();
   }
 
+  /// Counted the way the website's summary counts: one bucket per status,
+  /// for this roster's students only.
   int _count(String key) {
-    return _marks.values
-        .where((value) => value == key)
+    final ids = {for (final s in _roster(SchoolScope.of(context))) s.id};
+    return _marks.entries
+        .where((e) => ids.contains(e.key) && e.value == key)
         .length;
   }
 
@@ -755,6 +778,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     var late = 0;
     var absent = 0;
     var excused = 0;
+    var leftEarly = 0;
 
     for (final row in rows) {
       final status =
@@ -766,22 +790,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           status == 'authorized_absence' ||
           status == 'excuse') {
         excused++;
-      } else if (status == 'absent' ||
-          status == 'early_departure') {
+      } else if (status == 'absent') {
         absent++;
+      } else if (status == 'early_departure') {
+        leftEarly++;
       } else {
         present++;
       }
     }
 
     final total =
-        present + late + absent + excused;
+        present + late + absent + excused + leftEarly;
 
     final pct = child == null
         ? 0
         : total == 0
             ? child.attendance
-            : ((present + late) /
+            : ((present + late + leftEarly) /
                     total *
                     100)
                 .round();
@@ -863,7 +888,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         ? '$total days recorded'
                         : '${term.totalDays} days recorded · ${store.currentTermLabel}',
                     stats: [
-                      (label: 'Present', value: term == null ? present + late : term.onTime + term.late, icon: Icons.check_circle_rounded, color: const Color(0xFF1B5E20)),
+                      (label: 'Present', value: term?.onTime ?? present, icon: Icons.check_circle_rounded, color: const Color(0xFF1B5E20)),
                       (label: 'Absent', value: term?.absent ?? absent, icon: Icons.cancel_rounded, color: AppColors.rose),
                       (label: 'Late', value: term?.late ?? late, icon: Icons.timer_outlined, color: AppColors.honeyDark),
                       (label: 'Excused', value: term?.excused ?? excused, icon: Icons.event_busy_rounded, color: AppColors.sky),
@@ -1034,10 +1059,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     if (s == 'late') return 'Late';
 
-    if (s == 'absent' ||
-        s == 'early_departure') {
-      return 'Absent';
-    }
+    if (s == 'early_departure') return 'Left early';
+
+    if (s == 'absent') return 'Absent';
 
     if (s == 'excused' ||
         s == 'authorized_absence' ||
@@ -1051,12 +1075,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Color _statusColor(String status) {
     final s = status.toLowerCase();
 
-    if (s == 'late') {
+    if (s == 'late' || s == 'early_departure') {
       return AppColors.honeyDark;
     }
 
-    if (s == 'absent' ||
-        s == 'early_departure') {
+    if (s == 'absent') {
       return AppColors.rose;
     }
 

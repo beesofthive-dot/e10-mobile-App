@@ -85,6 +85,13 @@ class _DepartmentHomeScreenState extends State<DepartmentHomeScreen> {
     _load();
   }
 
+  /// New permissions can arrive while this page is open; their rows need counts.
+  @override
+  void didUpdateWidget(DepartmentHomeScreen old) {
+    super.didUpdateWidget(old);
+    if (old.user.permissions.join() != widget.user.permissions.join()) _load();
+  }
+
   Future<int?> _count(Future<DepartmentPage> Function() read) async {
     try {
       return (await read()).total;

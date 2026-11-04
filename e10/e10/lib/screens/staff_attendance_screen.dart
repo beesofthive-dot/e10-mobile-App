@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
@@ -33,10 +35,22 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
   /// school's teachers are shown).
   List<NamedRecord>? _clockers;
 
+  /// Re-reads today every 30 s so a new palm scan shows without pulling.
+  Timer? _live;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _live = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && _isToday && !_loading) _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _live?.cancel();
+    super.dispose();
   }
 
   String get _dayKey =>
@@ -72,9 +86,18 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
   /// Everyone who clocks in (teachers and other staff), as the website lists.
   Future<void> _loadClockers() async {
     try {
-      final body = await ApiClient.instance.get(ApiConfig.staffPath, query: {'clocks_in': '1', 'status': 'active', 'per_page': '200'});
-      final data = body is Map ? body['data'] : null;
-      if (data is! List) return;
+      final query = {'clocks_in': '1', 'status': 'active', 'per_page': '100'};
+      final body = await ApiClient.instance.get(ApiConfig.staffPath, query: query);
+      final first = body is Map ? body['data'] : null;
+      if (first is! List) return;
+      // The server caps a page; read every page so no staff member is missing.
+      final data = [...first];
+      final meta = body is Map ? body['meta'] : null;
+      final lastPage = meta is Map ? int.tryParse('${meta['last_page'] ?? 1}') ?? 1 : 1;
+      for (var page = 2; page <= lastPage && page <= 20; page++) {
+        final more = await ApiClient.instance.get(ApiConfig.staffPath, query: {...query, 'page': '$page'});
+        if (more is Map && more['data'] is List) data.addAll(more['data'] as List);
+      }
       _clockers = [
         for (final r in data)
           if (r is Map)

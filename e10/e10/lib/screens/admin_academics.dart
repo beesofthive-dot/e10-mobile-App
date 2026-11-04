@@ -126,10 +126,12 @@ class AdminAcademicsScreen extends StatelessWidget {
   }
 
   void _edit(BuildContext context, SchoolStore store, [AcademicMark? existing]) {
-    final subject = TextEditingController(text: existing?.subject ?? 'Mathematics');
-    final term = TextEditingController(text: existing?.term ?? 'Term 1');
-    final score = TextEditingController(text: existing?.score.toString() ?? '80');
-    final grade = TextEditingController(text: existing?.grade ?? 'B+');
+    // New marks start blank (or from the school's own subjects/term), never
+    // from made-up example values that could be saved by accident.
+    final subject = TextEditingController(text: existing?.subject ?? store.subjectNames.firstOrNull ?? '');
+    final term = TextEditingController(text: existing?.term ?? store.currentTermLabel);
+    final score = TextEditingController(text: existing?.score.toString() ?? '');
+    final grade = TextEditingController(text: existing?.grade ?? '');
     final remark = TextEditingController(text: existing?.remark ?? '');
     var student = existing?.student ?? store.studentNames.firstOrNull ?? '';
     var klass = existing?.klass ?? store.classNames.firstOrNull ?? '';

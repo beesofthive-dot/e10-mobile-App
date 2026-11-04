@@ -18,6 +18,7 @@ class LandingScreen extends StatelessWidget {
     (Icons.family_restroom_rounded, 'For parents', 'Fees, feeding, reports and daily updates.'),
     (Icons.school_rounded, 'For teachers', 'Attendance, homework, marks and news.'),
     (Icons.point_of_sale_rounded, 'For the school office', 'Fees and feeding, with a receipt every time.'),
+    (Icons.admin_panel_settings_rounded, 'For school admins', 'See every staff palm clock-in live, plus attendance and fees at a glance.'),
   ];
 
   static const _highlights = ['Fees & feeding', 'Attendance', 'Report cards'];

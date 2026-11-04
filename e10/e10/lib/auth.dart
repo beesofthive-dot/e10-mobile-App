@@ -172,9 +172,20 @@ class Auth {
 
   static String _digits(String value) => value.replaceAll(RegExp(r'\D'), '');
 
+  /// Staff OTC accepts either the email or the phone number the school has
+  /// for them (`identifier`, as the website sends it). Phones go as typed
+  /// digits ("0244000000"), the same normalisation the guardian login uses.
+  static String staffIdentifier(String value) {
+    final trimmed = value.trim();
+    if (trimmed.contains('@')) return trimmed;
+    final digits = _digits(trimmed);
+    if (digits.length < 9) return trimmed;
+    return digits.length == 10 && digits.startsWith('0') ? digits : trimmed.replaceAll(RegExp(r'[\s\-()]'), '');
+  }
+
   static Future<AuthResult> staffCode(String email) async {
-    final value = email.trim();
-    if (value.isEmpty) return AuthResult.error('Enter the staff email address.');
+    final value = staffIdentifier(email);
+    if (value.isEmpty) return AuthResult.error('Enter your email or phone number.');
     try {
       final hit = await _jsonPost(
         ApiConfig.staffRequestCodePath,
@@ -207,7 +218,7 @@ class Auth {
     try {
       final hit = await _jsonPost(
         ApiConfig.staffVerifyCodePath,
-        {'identifier': email.trim(), 'code': digits},
+        {'identifier': staffIdentifier(email), 'code': digits},
         const Duration(seconds: 15),
       );
       if (hit != null) {

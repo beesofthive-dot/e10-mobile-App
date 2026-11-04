@@ -39,6 +39,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   int _presentToday(SchoolStore store) {
+    // The server's own count for today when it sent one (what the website
+    // shows), else today's records.
+    final summary = store.dashboardSummary?.studentsIn;
+    if (summary != null) return summary;
     return store.students.where((s) {
       final status = store.rollOf(s.id).toLowerCase();
       return status == 'present' || status == 'late';
@@ -50,11 +54,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return store.students.fold<int>(0, (sum, student) => sum + student.attendance) / store.students.length;
   }
 
+  /// This week's real attendance per day (Mon–Sun): the share of that
+  /// day's student records that are present, late or left early. Days with
+  /// no records are 0 — nothing is estimated.
   List<double> _attendanceTrend(SchoolStore store) {
-    final avg = _averageAttendance(store);
-    final weekday = DateTime.now().weekday;
+    final now = DateTime.now();
+    final monday = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+    String key(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final rows = store.tables['attendance'] ?? const <Map<String, dynamic>>[];
     return [
-      for (var i = 1; i <= 7; i++) (avg * (i == weekday ? 1.0 : (0.86 + (i * 0.02)))).clamp(0, 100).toDouble(),
+      for (var i = 0; i < 7; i++)
+        () {
+          final day = key(monday.add(Duration(days: i)));
+          var total = 0, attended = 0;
+          for (final row in rows) {
+            if (!'${row['date'] ?? ''}'.startsWith(day)) continue;
+            if (row['staff_id'] != null || '${row['person_type'] ?? ''}' == 'staff') continue;
+            total++;
+            final status = '${row['status'] ?? ''}'.toLowerCase();
+            if (status == 'present' || status == 'late' || status == 'early_departure') attended++;
+          }
+          return total == 0 ? 0.0 : attended * 100 / total;
+        }(),
     ];
   }
 

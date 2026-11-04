@@ -22,6 +22,8 @@ class _TeacherReportsAdminScreenState extends State<TeacherReportsAdminScreen> {
   String _term = 'All';
   String _klass = 'All';
   String _section = 'All';
+
+  static List<String> _options(Iterable<String> values) => ['All', ...{for (final v in values) if (v.trim().isNotEmpty) v.trim()}];
   String _subject = 'All';
   String _teacher = 'All';
   String _type = 'All';
@@ -60,10 +62,12 @@ class _TeacherReportsAdminScreenState extends State<TeacherReportsAdminScreen> {
             children: [
               _SummaryRow(reports: store.teacherReports),
               const SizedBox(height: 14),
-              AdminDropdown(label: 'Academic Year', value: _year, items: const ['All', '2025/26', '2026/27'], onChanged: (v) => setState(() => _year = v)),
-              AdminDropdown(label: 'Term', value: _term, items: const ['All', 'Term 1', 'Term 2', 'Term 3'], onChanged: (v) => setState(() => _term = v)),
+              // Filter choices come from the school's own years/terms and
+              // the reports themselves, never a fixed list.
+              AdminDropdown(label: 'Academic Year', value: _year, items: _options([...store.yearLabels, for (final r in store.teacherReports) r.year]), onChanged: (v) => setState(() => _year = v)),
+              AdminDropdown(label: 'Term', value: _term, items: _options([...store.termLabels, for (final r in store.teacherReports) r.term]), onChanged: (v) => setState(() => _term = v)),
               AdminDropdown(label: 'Class', value: _klass, items: ['All', ...store.classNames], onChanged: (v) => setState(() => _klass = v)),
-              AdminDropdown(label: 'Section', value: _section, items: const ['All', 'A', 'B', 'C'], onChanged: (v) => setState(() => _section = v)),
+              AdminDropdown(label: 'Section', value: _section, items: _options([for (final r in store.teacherReports) r.section]), onChanged: (v) => setState(() => _section = v)),
               AdminDropdown(label: 'Subject', value: _subject, items: ['All', ...store.subjectNames], onChanged: (v) => setState(() => _subject = v)),
               AdminDropdown(label: 'Teacher', value: _teacher, items: ['All', ...store.teacherNames], onChanged: (v) => setState(() => _teacher = v)),
               AdminDropdown(label: 'Report Type', value: _type, items: const ['All', 'Class Report', 'Examination Report'], onChanged: (v) => setState(() => _type = v)),

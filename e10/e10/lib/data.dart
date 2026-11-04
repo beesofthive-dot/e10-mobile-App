@@ -211,6 +211,7 @@ List<SidebarGroup> sidebarFor(Role role, [Set<AppScreen>? allowed]) {
             if (role.canManageRoles)
               const NavItem(screen: AppScreen.adminRoles, label: 'Roles', icon: Icons.manage_accounts_outlined),
             const NavItem(screen: AppScreen.adminTeachers, label: 'Teachers', icon: Icons.school_outlined),
+            const NavItem(screen: AppScreen.subjectAssignments, label: 'Subject assignments', icon: Icons.assignment_ind_outlined),
             const NavItem(screen: AppScreen.adminParents, label: 'Parents', icon: Icons.family_restroom_outlined),
             const NavItem(screen: AppScreen.adminStudents, label: 'Students', icon: Icons.groups_rounded),
           ],

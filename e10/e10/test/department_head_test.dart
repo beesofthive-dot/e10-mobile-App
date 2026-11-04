@@ -433,6 +433,51 @@ void main() {
   });
 
   group('setting heads', () {
+    testWidgets('an admin sees the departments and their heads after the first sync', (tester) async {
+      await http.runWithClient(() async {
+        SharedPreferences.setMockInitialValues({});
+        ApiSession.instance.user = {'roles': ['school_admin'], 'permissions': ['departments.view']};
+        final store = SchoolStore()
+          ..applyUserSchool(const AppUser(email: 'a@s.test', displayName: 'A', role: Role.schoolAdmin, subtitle: ''));
+        addTearDown(store.stopLiveSync);
+        await store.syncFromApi();
+        for (var i = 0; i < 10 && store.departments.isEmpty; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+        store.stopLiveSync();
+        expect(store.departments.map((d) => d.name), ['Primary', 'JHS']);
+        expect(store.departments.first.link, 'Ama Head, Kojo Teacher (assistant)');
+        expect(store.departments.last.link, '');
+        await tester.pump(const Duration(seconds: 1));
+      }, () => MockClient((r) async => _reply(r)));
+    });
+
+    testWidgets('from the admin dashboard to the heads form', (tester) async {
+      const admin = AppUser(
+        email: 'a@s.test',
+        displayName: 'Admin',
+        role: Role.schoolAdmin,
+        subtitle: 'School Admin',
+        roleSlugs: ['school_admin'],
+        permissions: ['departments.update'],
+      );
+      await http.runWithClient(() async {
+        final store = await _open(tester, admin, AppScreen.adminHome, size: const Size(420, 3000));
+        store.departments.add(NamedRecord(id: 'd1', name: 'Primary', link: 'Ama Head'));
+        await tester.tap(find.text('Set who heads each department'));
+        await _settle(tester);
+        expect(find.text('Head: Ama Head'), findsOneWidget);
+        await tester.tap(find.byType(IconButton).last);
+        await _settle(tester);
+        await tester.tap(find.text('Department heads'));
+        await _settle(tester);
+        await _settle(tester);
+        expect(find.text('Heads of Primary'), findsOneWidget);
+        expect(find.text('Save heads'), findsOneWidget);
+        store.stopLiveSync();
+      }, () => MockClient((r) async => _reply(r)));
+    });
+
     testWidgets('admin department list offers the heads form only with permission', (tester) async {
       Future<void> show(bool canManage) async {
         final store = SchoolStore()

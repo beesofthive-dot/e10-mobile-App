@@ -141,7 +141,7 @@ class _StaffReportCardsScreenState extends State<StaffReportCardsScreen> {
   /// Every page of a list (the website pages through these too).
   Future<List<Map<String, dynamic>>> _all(String path, [Map<String, String> query = const {}]) async {
     final out = <Map<String, dynamic>>[];
-    for (var page = 1; page <= 10; page++) {
+    for (var page = 1; page <= 30; page++) {
       final body = await _api.get(path, query: {...query, 'per_page': '100', 'page': '$page'});
       out.addAll(_rows(body));
       final meta = body is Map && body['meta'] is Map ? body['meta'] as Map : const {};
@@ -159,13 +159,13 @@ class _StaffReportCardsScreenState extends State<StaffReportCardsScreen> {
     });
     try {
       final query = {
-        'per_page': '50',
         if (_search.text.trim().isNotEmpty) 'search': _search.text.trim(),
         if (_classFilter.isNotEmpty) 'class_id': _classFilter,
         if (_termFilter.isNotEmpty) 'academic_term_id': _termFilter,
       };
       final results = await Future.wait([
-        _api.get(ApiConfig.reportCardsPath, query: query).then(_rows),
+        // Every card, not just the first page of 50 (there is no "load more").
+        _all(ApiConfig.reportCardsPath, query),
         _safe(_all('students')),
         _safe(_all('academic-terms')),
         _safe(_all('subjects')),
