@@ -16,8 +16,8 @@ import 'admin_forms.dart' show showSnack;
 /// Admin Transactions, the same page as the website's: every figure comes
 /// from the server so it tallies with the records — the tiles and both
 /// charts from `GET /transactions-summary`, the table from `GET /payments`
-/// (25 a page) — and the same filters (status, method, provider, source,
-/// from/to, chart period, recorded by) apply to all of them.
+/// (25 a page) — and the same filters (status, method, chart period,
+/// recorded by, search) apply to all of them.
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen(
       {super.key, this.onBack, required this.onLogout, this.viewOnly = false});
@@ -74,18 +74,12 @@ String _methodLabel(String raw) =>
 
 class _FinanceScreenState extends State<FinanceScreen> {
   // Filters, with the website's choices (value, label).
-  static const _statuses = [('', 'All'), ('successful', 'Successful'), ('pending', 'Pending'), ('processing', 'Processing'), ('failed', 'Failed')];
-  static const _methods = [('', 'All'), ('cash', 'Cash'), ('mtn_momo', 'MTN MoMo'), ('telecel_cash', 'Telecel Cash'), ('airteltigo_money', 'AirtelTigo'), ('bank_transfer', 'Bank transfer')];
-  static const _providers = [('', 'All'), ('mtn_momo', 'MTN MoMo'), ('telecel_cash', 'Telecel Cash'), ('airteltigo_money', 'AirtelTigo Money')];
-  static const _sources = [('', 'All'), ('manual', 'Manual'), ('gateway', 'Gateway')];
+  static const _statuses = [('', 'Any'), ('successful', 'Successful'), ('pending', 'Pending'), ('processing', 'Processing'), ('failed', 'Failed')];
+  static const _methods = [('', 'Any'), ('cash', 'Cash'), ('mtn_momo', 'MTN MoMo'), ('telecel_cash', 'Telecel Cash'), ('airteltigo_money', 'AirtelTigo'), ('bank_transfer', 'Bank transfer')];
   static const _periods = [('day', 'By day'), ('week', 'By week')];
 
   String _status = '';
   String _method = '';
-  String _provider = '';
-  String _source = '';
-  String _from = '';
-  String _to = '';
   String _period = 'day';
   String _recordedBy = '';
   String _tab = 'in';
@@ -136,10 +130,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
         'period': _period,
         if (_status.isNotEmpty) 'status': _status,
         if (_method.isNotEmpty) 'method': _method,
-        if (_provider.isNotEmpty) 'provider': _provider,
-        if (_source.isNotEmpty) 'source': _source,
-        if (_from.isNotEmpty) 'date_from': _from,
-        if (_to.isNotEmpty) 'date_to': _to,
       };
 
   static Map<String, dynamic>? _unwrap(dynamic body) {
@@ -198,19 +188,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Future<void> _refresh(SchoolStore store) async {
     await Future.wait([_load(page: _page), store.refreshBillsAndPayments()]);
     if (mounted && _error == null) showSnack(context, 'Transactions refreshed');
-  }
-
-  Future<void> _pickDate(bool from) async {
-    final current = DateTime.tryParse(from ? _from : _to) ?? DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: current,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-    );
-    if (picked == null) return;
-    final key = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-    _setFilter(() => from ? _from = key : _to = key);
   }
 
   String _dateLabel(DateTime? d) {
@@ -335,13 +312,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: AppLayout.page(context),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      'Your school\'s fee collections. Filters apply to the table, tiles, and charts.',
-                      style: AppText.body(size: 12, color: AppColors.slate500),
-                    ),
-                  ),
                   WhiteCard(
                     padding: const EdgeInsets.all(14),
                     child: Column(
@@ -371,26 +341,33 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        financeGrid(context, [
-                          _drop('Status', _status, _statuses, (v) => _setFilter(() => _status = v)),
-                          _drop('Method', _method, _methods, (v) => _setFilter(() => _method = v)),
-                          _drop('Provider', _provider, _providers, (v) => _setFilter(() => _provider = v)),
-                          _drop('Source', _source, _sources, (v) => _setFilter(() => _source = v)),
-                          DateFilterField(label: 'From', value: _from.isEmpty ? 'Any day' : _from, onTap: () => _pickDate(true)),
-                          DateFilterField(label: 'To', value: _to.isEmpty ? 'Any day' : _to, onTap: () => _pickDate(false)),
-                          _drop('Chart period', _period, _periods, (v) => _setFilter(() => _period = v)),
-                        ]),
-                        if (_from.isNotEmpty || _to.isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: () => _setFilter(() {
-                                _from = '';
-                                _to = '';
-                              }),
-                              child: const Text('Clear dates'),
-                            ),
-                          ),
+                        LayoutBuilder(
+                          builder: (context, box) {
+                            final status = _drop('Status', _status, _statuses, (v) => _setFilter(() => _status = v));
+                            final method = _drop('Method', _method, _methods, (v) => _setFilter(() => _method = v));
+                            final period = _drop('Chart period', _period, _periods, (v) => _setFilter(() => _period = v));
+                            if (box.maxWidth >= 520) {
+                              return Row(children: [
+                                Expanded(child: status),
+                                const SizedBox(width: 12),
+                                Expanded(child: method),
+                                const SizedBox(width: 12),
+                                Expanded(child: period),
+                              ]);
+                            }
+                            return Column(
+                              children: [
+                                Row(children: [
+                                  Expanded(child: status),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: method),
+                                ]),
+                                const SizedBox(height: 12),
+                                period,
+                              ],
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),

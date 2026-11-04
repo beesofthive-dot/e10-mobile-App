@@ -86,6 +86,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // The previous filter box: Status, Method, Chart period only.
+      expect(find.text('Status'), findsOneWidget);
+      expect(find.text('Method'), findsOneWidget);
+      expect(find.text('Chart period'), findsOneWidget);
+      expect(find.text('Provider'), findsNothing);
+      expect(find.text('Source'), findsNothing);
+      expect(find.text('From'), findsNothing);
+
       // Server totals, not sums of whatever the phone downloaded.
       expect(find.text('GHS 2,800.00'), findsOneWidget);
       expect(find.text('2 successful payments'), findsOneWidget);
