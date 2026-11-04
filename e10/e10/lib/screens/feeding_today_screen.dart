@@ -124,6 +124,7 @@ class _FeedingTodayScreenState extends State<FeedingTodayScreen> {
       if (collectOrView) ('payments', 'Payments'),
       if (FeedingAccess.cashup(u)) ('cashup', 'Cash-up'),
       if (FeedingAccess.seeAllFeeding(u)) ('report', 'Report'),
+      if (FeedingAccess.feedingSettings(u)) ('whopays', 'Who pays'),
       if (FeedingAccess.feedingSettings(u)) ('settings', 'Rates & days'),
     ];
   }
@@ -170,6 +171,7 @@ class _FeedingTodayScreenState extends State<FeedingTodayScreen> {
                   'payments' => FeedingPaymentsTab(user: widget.user, currency: _currency),
                   'cashup' => FeedingCashupTab(currency: _currency),
                   'report' => FeedingReportTab(currency: _currency),
+                  'whopays' => FeedingWhoPaysTab(currency: _currency),
                   _ => FeedingSettingsTab(currency: _currency),
                 },
                 const SizedBox(height: 24),

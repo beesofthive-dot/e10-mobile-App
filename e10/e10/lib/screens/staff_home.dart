@@ -62,7 +62,7 @@ class StaffHome extends StatelessWidget {
               ],
               if (role == Role.accountant && PlanAccess.allows(AppScreen.adminFinance)) ...[
                 const SizedBox(height: 16),
-                MoneyDashboardCard(user: user),
+                MoneyDashboardCard(user: user, onNav: onNav),
                 const SizedBox(height: 16),
                 FinanceDashboardCard(
                   collected: 'GHS ${store.feesCollected().toStringAsFixed(2)}',

@@ -69,6 +69,18 @@ class FeedingApi {
 
   static Future<Map<String, dynamic>> report() async => _data(await _api.get('feeding/report'));
 
+  /// Who pays daily feeding: one page of children plus `counts`, `classes`
+  /// and `meta` at the top level, as the website reads it.
+  static Future<Map<String, dynamic>> whoPays(Map<String, String> query) async =>
+      _map(await _api.get('feeding/who-pays', query: query));
+
+  /// [reason] null puts the children back on daily feeding.
+  static Future<String> setWhoPays(List<String> studentIds, String? reason) async =>
+      '${_map(await _api.post('feeding/who-pays', {'student_ids': studentIds, 'reason': reason}))['message'] ?? 'Saved'}';
+
+  static Future<String> clearUnpaid(String studentId) async =>
+      '${_map(await _api.post('feeding/students/$studentId/clear-unpaid', const {}))['message'] ?? 'Unpaid days cleared'}';
+
   static Future<Map<String, dynamic>> saveSettings(Map<String, dynamic> body) async =>
       _data(await _api.put('feeding/settings', body));
 

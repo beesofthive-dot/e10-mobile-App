@@ -834,3 +834,304 @@ class _FeedingSettingsTabState extends State<FeedingSettingsTab> {
     );
   }
 }
+
+// ───────────────────────────── Who pays ─────────────────────────────
+
+/// The website's "Who pays daily feeding": which children pay each day and
+/// which don't (bring food, feeding on the term bill, free, other). Tick
+/// children to change them together; clear unpaid days a non-paying child
+/// still carries. Boarders are never charged and aren't listed.
+class FeedingWhoPaysTab extends StatefulWidget {
+  const FeedingWhoPaysTab({super.key, required this.currency});
+
+  final String currency;
+
+  @override
+  State<FeedingWhoPaysTab> createState() => _FeedingWhoPaysTabState();
+}
+
+class _FeedingWhoPaysTabState extends State<FeedingWhoPaysTab> {
+  static const reasons = [
+    ('brings_food', 'Brings food from home'),
+    ('term_bill', 'Feeding is on the term bill'),
+    ('free', 'Free (e.g. staff child)'),
+    ('other', 'Other'),
+  ];
+
+  final _search = TextEditingController();
+  Timer? _debounce;
+  String _classId = '';
+  String _show = 'all';
+  int _page = 1;
+  int _lastPage = 1;
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+  List<Map<String, dynamic>> _rows = const [];
+  List<Map<String, dynamic>> _classes = const [];
+  Map<String, dynamic> _counts = const {};
+  final Set<String> _ticked = {};
+  String _reason = 'brings_food';
+
+  String _money(dynamic v) => money(v, widget.currency);
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final body = await FeedingApi.whoPays({
+        'page': '$_page',
+        'show': _show,
+        if (_classId.isNotEmpty) 'class_id': _classId,
+        if (_search.text.trim().isNotEmpty) 'search': _search.text.trim(),
+      });
+      if (!mounted) return;
+      final meta = body['meta'] is Map ? body['meta'] as Map : const {};
+      setState(() {
+        _rows = FeedingApi.rows(body['data']);
+        _classes = FeedingApi.rows(body['classes']);
+        _counts = body['counts'] is Map ? Map<String, dynamic>.from(body['counts'] as Map) : const {};
+        _lastPage = intOf(meta['last_page']) < 1 ? 1 : intOf(meta['last_page']);
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Could not load who pays. $e';
+        });
+      }
+    }
+  }
+
+  void _filter(VoidCallback change) {
+    setState(() {
+      change();
+      _page = 1;
+    });
+    _load();
+  }
+
+  void _goTo(int page) {
+    setState(() => _page = page);
+    _load();
+  }
+
+  Future<void> _apply(String? reason) async {
+    setState(() => _saving = true);
+    try {
+      final message = await FeedingApi.setWhoPays(_ticked.toList(), reason);
+      if (!mounted) return;
+      showSnack(context, message);
+      _ticked.clear();
+      await _load();
+    } catch (e) {
+      if (mounted) showSnack(context, 'Could not save. $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _clear(Map<String, dynamic> row) async {
+    final days = intOf(row['unpaid_days']);
+    final ok = await showAppConfirm(
+      context: context,
+      title: 'Clear unpaid days?',
+      message: '${row['full_name'] ?? 'This child'} owes ${plural(days, 'unpaid day')} (${_money(row['unpaid_amount'])}). '
+          'Clearing removes them, e.g. when feeding was on the term bill all along. This can’t be undone.',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Clear unpaid days',
+    );
+    if (!ok || !mounted) return;
+    try {
+      final message = await FeedingApi.clearUnpaid('${row['student_id']}');
+      if (!mounted) return;
+      showSnack(context, message);
+      await _load();
+    } catch (e) {
+      if (mounted) showSnack(context, 'Could not clear the unpaid days. $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppText.body(size: 12, color: AppSurface.muted(context));
+    final allTicked = _rows.isNotEmpty && _rows.every((r) => _ticked.contains('${r['student_id']}'));
+    return CounterSection(
+      title: 'Who pays daily feeding',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_counts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text.rich(TextSpan(style: AppText.body(size: 13, color: AppSurface.ink(context)), children: [
+                TextSpan(text: '${intOf(_counts['paying'])}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                const TextSpan(text: ' pay daily · '),
+                TextSpan(text: '${intOf(_counts['not_paying'])}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                const TextSpan(text: ' don’t'),
+                TextSpan(text: ' · boarders are never charged and aren’t listed', style: muted),
+              ])),
+            ),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final (key, label) in const [('all', 'Everyone'), ('paying', 'Pay daily'), ('not_paying', 'Don’t pay')])
+                ChoiceChip(label: Text(label), selected: _show == key, onSelected: (_) => _filter(() => _show = key)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _classId,
+            isExpanded: true,
+            decoration: appFieldDecoration(context, hint: 'Class'),
+            items: [
+              const DropdownMenuItem(value: '', child: Text('All classes')),
+              for (final c in _classes) DropdownMenuItem(value: '${c['id']}', child: Text('${c['name'] ?? ''}')),
+            ],
+            onChanged: (v) => _filter(() => _classId = v ?? ''),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _search,
+            decoration: appFieldDecoration(context, hint: 'Search a name / admission no.'),
+            onChanged: (_) {
+              _debounce?.cancel();
+              _debounce = Timer(const Duration(milliseconds: 300), () => _filter(() {}));
+            },
+          ),
+          if (_ticked.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: _rowBox(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('${_ticked.length} ticked', style: AppText.body(size: 13, weight: FontWeight.w800)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: _reason,
+                    isExpanded: true,
+                    decoration: appFieldDecoration(context, hint: 'Why they don’t pay'),
+                    items: [for (final (v, l) in reasons) DropdownMenuItem(value: v, child: Text(l))],
+                    onChanged: (v) => setState(() => _reason = v ?? _reason),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      FilledButton(onPressed: _saving ? null : () => _apply(_reason), child: const Text('Mark as not paying')),
+                      OutlinedButton(onPressed: _saving ? null : () => _apply(null), child: const Text('Put back on daily feeding')),
+                      TextButton(onPressed: () => setState(_ticked.clear), child: const Text('Untick all')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          if (_error != null) MutedText(_error!),
+          if (_loading && _rows.isEmpty)
+            _spinner()
+          else ...[
+            if (_rows.isNotEmpty)
+              Row(
+                children: [
+                  Checkbox(
+                    value: allTicked,
+                    onChanged: (_) => setState(() {
+                      for (final r in _rows) {
+                        allTicked ? _ticked.remove('${r['student_id']}') : _ticked.add('${r['student_id']}');
+                      }
+                    }),
+                  ),
+                  Text('Tick everyone on this page', style: muted),
+                ],
+              ),
+            if (_rows.isEmpty && _error == null) const MutedText('No children to show'),
+            for (final r in _rows) _childRow(r),
+            if (_lastPage > 1)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(onPressed: _page > 1 && !_loading ? () => _goTo(_page - 1) : null, child: const Text('Previous')),
+                  Text('Page $_page of $_lastPage', style: muted),
+                  TextButton(onPressed: _page < _lastPage && !_loading ? () => _goTo(_page + 1) : null, child: const Text('Next')),
+                ],
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _childRow(Map<String, dynamic> r) {
+    final id = '${r['student_id']}';
+    final exempt = r['exempt'] is Map ? r['exempt'] as Map : null;
+    final unpaid = intOf(r['unpaid_days']);
+    final since = textOf(r['exempt_since']);
+    final note = exempt == null
+        ? null
+        : exempt['automatic'] == true
+            ? 'Automatic: Feeding line on this term’s bill'
+            : (since == null ? null : 'Since ${dayLabel(since)}');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(4, 6, 10, 6),
+      decoration: _rowBox(context),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(
+            value: _ticked.contains(id),
+            onChanged: (_) => setState(() => _ticked.contains(id) ? _ticked.remove(id) : _ticked.add(id)),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 6),
+                Text('${r['full_name'] ?? ''}', style: AppText.body(size: 13.5, weight: FontWeight.w700, color: AppSurface.ink(context))),
+                MutedText([textOf(r['admission_number']), textOf(r['class_name']) ?? '—'].whereType<String>().join(' · '), size: 12),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    exempt == null
+                        ? const FeedBadge('Pays daily', tone: 'green')
+                        : FeedBadge('Doesn’t pay · ${exempt['label'] ?? ''}'),
+                    if (unpaid > 0)
+                      Text('${plural(unpaid, 'unpaid day')} · ${_money(r['unpaid_amount'])}',
+                          style: AppText.body(size: 12, weight: FontWeight.w700, color: const Color(0xFFB91C1C))),
+                    if (unpaid > 0 && exempt != null) TextButton(onPressed: () => _clear(r), child: const Text('Clear')),
+                  ],
+                ),
+                if (note != null) MutedText(note, size: 11),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

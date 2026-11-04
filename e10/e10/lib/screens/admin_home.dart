@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../api/api_client.dart';
 import '../models.dart';
 import '../plan_access.dart';
 import '../school_store.dart';
@@ -119,7 +122,10 @@ class _AdminHomeState extends State<AdminHome> {
     final absentPct = total == 0 ? 0.0 : absent * 100 / total;
     final staffSummary = store.dashboardSummary;
     final teachers = staffSummary?.clockingStaff ?? store.teachers.length;
-    final teacherPresent = staffSummary?.staffIn ?? teachers;
+    // Real clock-ins only: the server's count, else today's staff records —
+    // never "everyone on the roll" as it used to show without a summary.
+    final teacherPresent = staffSummary?.staffIn ??
+        store.staffAttendanceToday().where((r) => SchoolStore.clockOf(r['check_in_at']).isNotEmpty).length;
     final collected =
         store.feesCollected(matches: (when) => _inPeriod(when, now));
     final outstanding = store.feesOutstanding();
@@ -246,13 +252,9 @@ class _AdminHomeState extends State<AdminHome> {
                         icon: Icons.school_rounded,
                         tint: const Color(0xFFDBEAFE),
                         iconColor: AppColors.orange,
-                        label: staffSummary?.staffIn == null ? 'Teachers' : 'Staff in',
+                        label: 'Staff present',
                         value: _comma(teacherPresent),
-                        hint: teachers == 0
-                            ? 'No staff'
-                            : staffSummary?.staffIn == null
-                                ? 'On roll'
-                                : 'of ${_comma(teachers)} today',
+                        hint: teachers == 0 ? 'No staff who clock in' : 'of ${_comma(teachers)} today',
                         hintColor: AppColors.orange,
                         onTap: () => widget.onNav(PlanAccess.allows(AppScreen.staffAttendance) ? AppScreen.staffAttendance : AppScreen.adminTeachers),
                       ),
@@ -311,6 +313,7 @@ class _AdminHomeState extends State<AdminHome> {
                     ],
                   ),
                   if (PlanAccess.allows(AppScreen.staffAttendance)) ...[
+                    const ScannerAlertCard(),
                     const SizedBox(height: 16),
                     StaffClockInsCard(
                       rows: store.staffAttendanceToday(),
@@ -321,7 +324,7 @@ class _AdminHomeState extends State<AdminHome> {
                   ],
                   if (PlanAccess.allows(AppScreen.adminFinance)) ...[
                   const SizedBox(height: 16),
-                  MoneyDashboardCard(user: widget.user),
+                  MoneyDashboardCard(user: widget.user, onNav: widget.onNav),
                   const SizedBox(height: 16),
                   FinanceDashboardCard(
                     collected: _money(collected),
@@ -545,6 +548,104 @@ class _ClockChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
       child: Text(label, style: AppText.body(size: 11, weight: FontWeight.w700, color: color)),
+    );
+  }
+}
+
+/// The website's palm-scanner warning: a scanner that has gone offline, or
+/// whose clock is wrong (its scans are then not recorded, so staff look
+/// absent). Checks `/palm-scanner-devices` every minute; shows nothing when
+/// all scanners are fine or the list can't be read.
+class ScannerAlertCard extends StatefulWidget {
+  const ScannerAlertCard({super.key});
+
+  @override
+  State<ScannerAlertCard> createState() => _ScannerAlertCardState();
+}
+
+class _ScannerAlertCardState extends State<ScannerAlertCard> {
+  List<Map<String, dynamic>> _devices = const [];
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final body = await ApiClient.instance.get('palm-scanner-devices');
+      final data = body is Map ? body['data'] : body;
+      if (!mounted || data is! List) return;
+      setState(() => _devices = [for (final d in data) if (d is Map) Map<String, dynamic>.from(d)]);
+    } catch (_) {
+      // No access or no scanners: nothing to warn about.
+    }
+  }
+
+  static String _name(Map<String, dynamic> d) {
+    final location = '${d['location'] ?? ''}'.trim();
+    return location.isNotEmpty ? '$location scanner' : 'Scanner ${d['device_code'] ?? ''}'.trim();
+  }
+
+  static String _when(dynamic raw) {
+    final t = DateTime.tryParse('${raw ?? ''}')?.toLocal();
+    if (t == null) return 'a while';
+    final now = DateTime.now();
+    final time = SchoolStore.clockOf(raw);
+    if (t.year == now.year && t.month == now.month && t.day == now.day) return time;
+    return '${t.day}/${t.month}/${t.year} $time';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final offline = _devices.where((d) => '${d['status']}' == 'offline').toList();
+    final badClock = _devices.where((d) => '${d['clock_problem_scan_at'] ?? ''}'.isNotEmpty).toList();
+    if (offline.isEmpty && badClock.isEmpty) return const SizedBox.shrink();
+    Widget line(String title, String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.honeyDark),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text.rich(TextSpan(children: [
+                  TextSpan(text: title, style: AppText.body(size: 13, weight: FontWeight.w800)),
+                  TextSpan(text: text, style: AppText.body(size: 13)),
+                ])),
+              ),
+            ],
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+        decoration: BoxDecoration(
+          color: AppColors.honey.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.honey.withValues(alpha: 0.45)),
+        ),
+        child: Column(
+          children: [
+            for (final d in offline)
+              line('${_name(d)} is offline',
+                  ': nothing received since ${_when(d['last_heard_at'])}. Scans made now are saved on the device and will arrive when it reconnects.'),
+            for (final d in badClock)
+              line('${_name(d)}’s clock looks wrong',
+                  ' (it says ${_when(d['clock_problem_scan_at'])}). Its scans aren’t being recorded. Correct the scanner’s date and time.'),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -103,12 +103,13 @@ class MutedText extends StatelessWidget {
 
 /// A stat box: label, big amount, small line under it.
 class TakingsTile extends StatelessWidget {
-  const TakingsTile({super.key, required this.label, required this.value, this.sub, this.icon});
+  const TakingsTile({super.key, required this.label, required this.value, this.sub, this.icon, this.valueColor});
 
   final String label;
   final String value;
   final String? sub;
   final IconData? icon;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +139,7 @@ class TakingsTile extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(value, maxLines: 1, style: AppText.display(size: 19, weight: FontWeight.w800, color: AppSurface.ink(context))),
+            child: Text(value, maxLines: 1, style: AppText.display(size: 19, weight: FontWeight.w800, color: valueColor ?? AppSurface.ink(context))),
           ),
           if (sub != null) ...[
             const SizedBox(height: 3),
