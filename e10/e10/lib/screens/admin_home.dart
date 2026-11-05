@@ -86,6 +86,18 @@ class _AdminHomeState extends State<AdminHome> {
     };
   }
 
+  /// Two tiles per row with even spacing.
+  Widget _tileGrid(List<Widget> tiles) => GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.25,
+        padding: EdgeInsets.zero,
+        children: tiles,
+      );
+
   String get _periodHint => switch (_period) {
         _DashPeriod.today => 'Today',
         _DashPeriod.week => 'This week',
@@ -218,15 +230,9 @@ class _AdminHomeState extends State<AdminHome> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 1.14,
-                    children: [
+                  const SizedBox(height: 20),
+                  const SectionHead(title: 'Students'),
+                  _tileGrid([
                       DashCard(
                         icon: Icons.groups_rounded,
                         tint: const Color(0xFFDBEAFE),
@@ -260,6 +266,20 @@ class _AdminHomeState extends State<AdminHome> {
                         onTap: () => widget.onNav(AppScreen.attendance),
                       ),
                       DashCard(
+                        icon: Icons.bar_chart_rounded,
+                        tint: const Color(0xFFECFDF5),
+                        iconColor: AppColors.emerald,
+                        label: 'Analytics',
+                        value: '${presentPct.toStringAsFixed(0)}%',
+                        hint: 'Student attendance rate',
+                        hintColor: AppColors.emerald,
+                        onTap: () => widget.onNav(AppScreen.analytics),
+                      ),
+                  ]),
+                  const SizedBox(height: 22),
+                  const SectionHead(title: 'Staff'),
+                  _tileGrid([
+                      DashCard(
                         icon: Icons.badge_rounded,
                         tint: const Color(0xFFFFEDD5),
                         iconColor: AppColors.orange,
@@ -278,6 +298,10 @@ class _AdminHomeState extends State<AdminHome> {
                         hintColor: AppColors.emerald,
                         onTap: () => widget.onNav(PlanAccess.allows(AppScreen.staffAttendance) ? AppScreen.staffAttendance : AppScreen.adminTeachers),
                       ),
+                  ]),
+                  const SizedBox(height: 22),
+                  const SectionHead(title: 'School & money'),
+                  _tileGrid([
                       if (PlanAccess.allows(AppScreen.adminFinance))
                       DashCard(
                         icon: Icons.payments_rounded,
@@ -300,16 +324,6 @@ class _AdminHomeState extends State<AdminHome> {
                         onTap: () => widget.onNav(AppScreen.adminStudents),
                       ),
                       DashCard(
-                        icon: Icons.bar_chart_rounded,
-                        tint: const Color(0xFFECFDF5),
-                        iconColor: AppColors.emerald,
-                        label: 'Analytics',
-                        value: '${presentPct.toStringAsFixed(0)}%',
-                        hint: 'Student attendance rate',
-                        hintColor: AppColors.emerald,
-                        onTap: () => widget.onNav(AppScreen.analytics),
-                      ),
-                      DashCard(
                         icon: Icons.class_rounded,
                         tint: const Color(0xFFDBEAFE),
                         iconColor: AppColors.orange,
@@ -319,8 +333,8 @@ class _AdminHomeState extends State<AdminHome> {
                         hintColor: AppColors.orange,
                         onTap: () => widget.onNav(AppScreen.adminClasses),
                       ),
-                    ],
-                  ),
+                  ]),
+                  const SizedBox(height: 22),
                   if (PlanAccess.allows(AppScreen.staffAttendance)) ...[
                     const ScannerAlertCard(),
                     const SizedBox(height: 16),

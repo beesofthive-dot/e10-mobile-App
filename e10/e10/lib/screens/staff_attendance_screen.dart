@@ -250,25 +250,41 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                   Row(
                     children: [
                       _Tile(label: 'Total staff', value: people.length, color: AppColors.blue),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       _Tile(label: 'Staff present', value: presentCount, color: AppColors.emerald),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       _Tile(label: _isToday ? 'Not clocked in' : 'Absent', value: outCount, color: AppColors.rose),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Staff clock in and out by scanning their palm or card at the gate. Marks you save here show on the website too.',
-                    style: AppText.body(size: 12, color: AppSurface.muted(context)),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.sky.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      border: Border.all(color: AppColors.sky.withValues(alpha: 0.18)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.back_hand_outlined, size: 18, color: AppColors.sky),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Staff clock in and out by scanning their palm or card at the gate. Marks you save here show on the website too.',
+                            style: AppText.body(size: 12.5, color: AppSurface.ink(context)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 14),
                   FilledButton.icon(
                     onPressed: people.isEmpty ? null : _mark,
                     icon: const Icon(Icons.edit_calendar_rounded, size: 18),
                     label: const Text('Mark staff attendance'),
                   ),
                   if (outCount > 0) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: _marking || _loading ? null : _markNotScanned,
                       icon: const Icon(Icons.person_off_outlined, size: 18),
@@ -277,7 +293,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                           : 'Mark ${plural(outCount, 'staff member')} not clocked in as absent'),
                     ),
                   ],
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 20),
                   if (people.isEmpty)
                     WhiteCard(
                       padding: const EdgeInsets.all(16),
@@ -291,7 +307,7 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                       stateOf: _state,
                       past: !_isToday,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                   ],
                 ],
               ),
@@ -314,7 +330,7 @@ class _Tile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -344,7 +360,7 @@ class _DeptCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final present = teachers.where((t) => !const {'out', 'absent', 'excused'}.contains(stateOf(rows[t.id]))).length;
     return WhiteCard(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

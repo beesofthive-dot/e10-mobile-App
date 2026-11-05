@@ -62,9 +62,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<String?> _token() async {
     final prefs = await SharedPreferences.getInstance();
 
-    return prefs.getString('auth_token') ??
-        prefs.getString('access_token') ??
-        prefs.getString('token');
+    return prefs.getString('auth_token') ?? prefs.getString('access_token') ?? prefs.getString('token');
   }
 
   Future<Map<String, String>> _headers() async {
@@ -121,9 +119,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       };
       final firstPage = _api('attendance').replace(queryParameters: query);
       final headers = await _headers();
-      var response = await http
-          .get(firstPage, headers: headers)
-          .timeout(const Duration(seconds: 20));
+      var response = await http.get(firstPage, headers: headers).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
@@ -138,9 +134,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           final meta = decoded['meta'];
           final lastPage = meta is Map ? int.tryParse('${meta['last_page'] ?? 1}') ?? 1 : 1;
           for (var page = 2; page <= lastPage && page <= 50; page++) {
-            response = await http
-                .get(_api('attendance').replace(queryParameters: {...query, 'page': '$page'}), headers: headers)
-                .timeout(const Duration(seconds: 20));
+            response = await http.get(_api('attendance').replace(queryParameters: {...query, 'page': '$page'}), headers: headers).timeout(const Duration(seconds: 20));
             if (response.statusCode != 200) break;
             final more = jsonDecode(response.body);
             final list = more is Map ? (more['data'] ?? more['attendance']) : more;
@@ -199,18 +193,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final row = Map<String, dynamic>.from(item);
       apiRows.add(row);
 
-      final studentId =
-          row['student_id']?.toString() ??
-          row['studentId']?.toString() ??
-          (row['student'] is Map ? row['student']['id']?.toString() : null);
+      final studentId = row['student_id']?.toString() ?? row['studentId']?.toString() ?? (row['student'] is Map ? row['student']['id']?.toString() : null);
 
       if (studentId == null || studentId.isEmpty || !rosterIds.contains(studentId)) {
         continue;
       }
 
-      final status =
-          item['status']?.toString().toLowerCase() ??
-          'present';
+      final status = item['status']?.toString().toLowerCase() ?? 'present';
 
       apiMarks[studentId] = _normStatus(status);
       _todayRows[studentId] = row;
@@ -294,9 +283,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     if (status == 'late') return 'late';
 
-    if (status == 'excused' ||
-        status == 'authorized_absence' ||
-        status == 'excuse') {
+    if (status == 'excused' || status == 'authorized_absence' || status == 'excuse') {
       return 'excused';
     }
 
@@ -311,24 +298,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   /// are marked by hand (the scanner ignores boarders' scans).
   bool _palmMarked(Student student) => !_boardersOnly && !student.boarder;
 
-  bool get _boardersOnly =>
-      widget.role == Role.teacher &&
-      _mode == 'boarders';
+  bool get _boardersOnly => widget.role == Role.teacher && _mode == 'boarders';
 
   List<Student> _roster(SchoolStore store) {
     if (_boardersOnly) {
-      return store.students
-          .where((s) => s.boarder)
-          .toList();
+      return store.students.where((s) => s.boarder).toList();
     }
 
-    final klass = store.classes
-        .where((c) => c.name == _klass)
-        .firstOrNull;
+    final klass = store.classes.where((c) => c.name == _klass).firstOrNull;
 
     return store.students.where((s) {
-      return s.klass == _klass ||
-          (klass != null && s.classId == klass.id);
+      return s.klass == _klass || (klass != null && s.classId == klass.id);
     }).toList();
   }
 
@@ -336,13 +316,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   /// for this roster's students only.
   int _count(String key) {
     final ids = {for (final s in _roster(SchoolScope.of(context))) s.id};
-    return _marks.entries
-        .where((e) => ids.contains(e.key) && e.value == key)
-        .length;
+    return _marks.entries.where((e) => ids.contains(e.key) && e.value == key).length;
   }
 
-  bool get _canSubmit =>
-      widget.role.canSubmitAttendance;
+  bool get _canSubmit => widget.role.canSubmitAttendance;
 
   // ============================================================
   // MARK NOT-SCANNED DAY STUDENTS ABSENT (admin)
@@ -354,8 +331,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   /// students with no record today — they never scanned at the gate — are
   /// submitted as Absent ("No palm scan") so the day tallies everywhere.
   /// Boarders are left to the class teacher's boarding register.
-  bool get _canMarkAbsent =>
-      widget.role.isAdminPortal && (widget.user?.permissions.contains('attendance.mark') ?? false);
+  bool get _canMarkAbsent => widget.role.isAdminPortal && (widget.user?.permissions.contains('attendance.mark') ?? false);
 
   Future<void> _markStudentsAbsent({String classId = '', String className = ''}) async {
     final store = SchoolScope.of(context);
@@ -390,21 +366,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     setState(() => _markingAbsent = false);
     showSnack(
       context,
-      result.failed == 0
-          ? '${result.marked} student${result.marked == 1 ? '' : 's'} marked absent'
-          : '${result.marked} marked absent, ${result.failed} not saved. ${result.error}',
+      result.failed == 0 ? '${result.marked} student${result.marked == 1 ? '' : 's'} marked absent' : '${result.marked} marked absent, ${result.failed} not saved. ${result.error}',
     );
     await _loadLiveAttendance();
   }
 
   Widget _markAbsentButton({String classId = '', String className = ''}) => OutlinedButton.icon(
         onPressed: _markingAbsent ? null : () => _markStudentsAbsent(classId: classId, className: className),
-        icon: _markingAbsent
-            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.person_off_outlined, size: 18),
-        label: Text(className.isEmpty
-            ? 'Mark day students not scanned today as absent'
-            : 'Mark not-scanned day students absent'),
+        icon: _markingAbsent ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.person_off_outlined, size: 18),
+        label: Text(className.isEmpty ? 'Mark day students not scanned today as absent' : 'Mark not-scanned day students absent'),
       );
 
   // ============================================================
@@ -415,15 +385,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final store = SchoolScope.of(context);
     final user = widget.user;
 
-    final rooms =
-        widget.role == Role.teacher && user != null
-            ? store.homeroomClassesFor(user)
-            : store.classes;
+    final rooms = widget.role == Role.teacher && user != null ? store.homeroomClassesFor(user) : store.classes;
 
-    final canMark =
-        widget.role == Role.teacher &&
-        user != null &&
-        store.isClassTeacher(user);
+    final canMark = widget.role == Role.teacher && user != null && store.isClassTeacher(user);
 
     return Column(
       children: [
@@ -436,21 +400,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   : 'Select a class to view attendance submitted today.',
           onBack: widget.onBack,
         ),
-
-        if (_apiLoading)
-          const LinearProgressIndicator(minHeight: 2),
-
+        if (_apiLoading) const LinearProgressIndicator(minHeight: 2),
         Expanded(
           child: ListView(
             padding: AppLayout.page(context),
             children: [
               if (_apiFailed)
                 _ApiWarning(
-                  message: _apiError ??
-                      'Unable to load live attendance.',
+                  message: _apiError ?? 'Unable to load live attendance.',
                   onRetry: _loadLiveAttendance,
                 ),
-
               if (_canMarkAbsent) ...[
                 _markAbsentButton(),
                 const SizedBox(height: 8),
@@ -548,10 +507,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return Column(
       children: [
         AdminPageHeader(
-          title:
-              canEdit ? 'Take Attendance' : 'View attendance',
-          subtitle:
-              canEdit ? _klass : '$_klass · submitted today',
+          title: canEdit ? 'Take Attendance' : 'View attendance',
+          subtitle: canEdit ? _klass : '$_klass · submitted today',
           onBack: () {
             setState(() {
               _classChosen = false;
@@ -559,190 +516,152 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             });
           },
         ),
-
-        if (_apiLoading)
-          const LinearProgressIndicator(minHeight: 2),
-
-        Padding(
-          padding:
-              const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: AttendanceStatGrid(
-            totalLabel: '${roster.length} on this roster',
-            stats: [
-              (label: 'Present', value: _count('present'), icon: Icons.check_circle_rounded, color: presentGreen),
-              (label: 'Absent', value: _count('absent'), icon: Icons.cancel_rounded, color: AppColors.rose),
-              (label: 'Late', value: _count('late'), icon: Icons.timer_outlined, color: AppColors.honeyDark),
-              (label: 'Excused', value: _count('excused'), icon: Icons.event_busy_rounded, color: AppColors.sky),
-            ],
-          ),
-        ),
-
-        if (!_boardersOnly && roster.any(_palmMarked))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-            child: Row(
-              children: [
-                const Icon(Icons.back_hand_outlined, size: 16, color: AppColors.emerald),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    canEdit
-                        ? 'Day students are marked by palm scan at the gate. Mark boarders below.'
-                        : 'Day students are marked by palm scan; boarders by the class teacher.',
-                    style: AppText.body(size: 12, color: AppColors.slate500),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-        if (!canEdit && _canMarkAbsent && !_boardersOnly)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-            child: _markAbsentButton(
-              classId: store.classes.where((c) => c.name == _klass).firstOrNull?.id ?? '',
-              className: _klass,
-            ),
-          ),
-
-        if (!canEdit)
-          Padding(
-            padding:
-                const EdgeInsets.fromLTRB(16, 4, 16, 0),
-            child: Text(
-              _marks.isEmpty
-                  ? 'The teacher has not submitted this class yet.'
-                  : 'Read only · marked by the class teacher.',
-              style: AppText.body(
-                size: 13,
-                color: AppColors.slate500,
-              ),
-            ),
-          ),
-
+        if (_apiLoading) const LinearProgressIndicator(minHeight: 2),
         Expanded(
-          child: ListView.builder(
-            padding:
-                const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            itemCount: roster.length,
-            itemBuilder: (context, i) {
-              final student = roster[i];
-
-              var mark = _marks[student.id];
-
-              if (mark == 'excused') {
-                mark = 'absent';
-              }
-
-              return Container(
-                padding:
-                    const EdgeInsets.symmetric(
-                  vertical: 10,
+          child: ListView(
+            padding: AppLayout.page(context),
+            children: [
+              AttendanceStatGrid(
+                totalLabel: '${roster.length} on this roster',
+                stats: [
+                  (label: 'Present', value: _count('present'), icon: Icons.check_circle_rounded, color: presentGreen),
+                  (label: 'Absent', value: _count('absent'), icon: Icons.cancel_rounded, color: AppColors.rose),
+                  (label: 'Late', value: _count('late'), icon: Icons.timer_outlined, color: AppColors.honeyDark),
+                  (label: 'Excused', value: _count('excused'), icon: Icons.event_busy_rounded, color: AppColors.sky),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (!_boardersOnly && roster.any(_palmMarked)) ...[
+                _InfoNote(
+                  icon: Icons.back_hand_outlined,
+                  color: AppColors.emerald,
+                  text: canEdit ? 'Day students are marked by palm scan at the gate. Mark boarders below.' : 'Day students are marked by palm scan; boarders by the class teacher.',
                 ),
-                decoration:
-                    const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: AppColors.border,
-                    ),
-                  ),
+                const SizedBox(height: 10),
+              ],
+              if (!canEdit) ...[
+                _InfoNote(
+                  icon: Icons.visibility_outlined,
+                  color: AppColors.sky,
+                  text: _marks.isEmpty ? 'The teacher has not submitted this class yet.' : 'Read only · marked by the class teacher.',
                 ),
-                child: Row(
-                  children: [
-                    _SoftAvatar(
-                      name: student.name,
-                      index: i,
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 10),
+              ],
+              if (!canEdit && _canMarkAbsent && !_boardersOnly) ...[
+                _markAbsentButton(
+                  classId: store.classes.where((c) => c.name == _klass).firstOrNull?.id ?? '',
+                  className: _klass,
+                ),
+                const SizedBox(height: 10),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                'Students',
+                style: AppText.display(size: 16, weight: FontWeight.w700, color: AppSurface.ink(context)),
+              ),
+              const SizedBox(height: 10),
+              if (roster.isEmpty)
+                WhiteCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('No students in this class yet.', style: AppText.body(size: 13, color: AppSurface.muted(context))),
+                ),
+              for (var i = 0; i < roster.length; i++)
+                Builder(builder: (context) {
+                  final student = roster[i];
+                  var mark = _marks[student.id];
+                  if (mark == 'excused') mark = 'absent';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: WhiteCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
                         children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  student.name,
-                                  maxLines: 1,
-                                  overflow:
-                                      TextOverflow.ellipsis,
-                                  style: AppText.body(
-                                    size: 16,
-                                    weight: FontWeight.w700,
-                                  ),
+                          _SoftAvatar(
+                            name: student.name,
+                            index: i,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        student.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppText.body(
+                                          size: 16,
+                                          weight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (student.allergies.trim().isNotEmpty || student.medicalNotes.trim().isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      const Icon(Icons.health_and_safety_rounded, size: 15, color: AppColors.rose),
+                                    ],
+                                  ],
+                                ),
+                                Text(
+                                  'ID ${store.studentDisplayId(student)}',
+                                  style: AppText.body(size: 11, color: AppColors.slate400),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_palmMarked(student))
+                            _PalmChip(row: _todayRows[student.id])
+                          else
+                            for (final option in const [
+                              (
+                                'present',
+                                'P',
+                                presentGreen,
+                              ),
+                              (
+                                'late',
+                                'L',
+                                AppColors.honeyDark,
+                              ),
+                              (
+                                'absent',
+                                'A',
+                                AppColors.rose,
+                              ),
+                            ])
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 8,
+                                ),
+                                child: _PlaCircle(
+                                  letter: option.$2,
+                                  selected: mark == option.$1,
+                                  color: option.$3,
+                                  onTap: canEdit
+                                      ? () {
+                                          setState(() {
+                                            _marks[student.id] = option.$1;
+                                            _submitted = false;
+                                          });
+                                        }
+                                      : null,
                                 ),
                               ),
-                              if (student.allergies.trim().isNotEmpty || student.medicalNotes.trim().isNotEmpty) ...[
-                                const SizedBox(width: 6),
-                                const Icon(Icons.health_and_safety_rounded, size: 15, color: AppColors.rose),
-                              ],
-                            ],
-                          ),
-                          Text(
-                            'ID ${store.studentDisplayId(student)}',
-                            style: AppText.body(size: 11, color: AppColors.slate400),
-                          ),
                         ],
                       ),
                     ),
-
-                    if (_palmMarked(student))
-                      _PalmChip(row: _todayRows[student.id])
-                    else
-                    for (final option in const [
-                      (
-                        'present',
-                        'P',
-                        presentGreen,
-                      ),
-                      (
-                        'late',
-                        'L',
-                        AppColors.honeyDark,
-                      ),
-                      (
-                        'absent',
-                        'A',
-                        AppColors.rose,
-                      ),
-                    ])
-                      Padding(
-                        padding:
-                            const EdgeInsets.only(
-                          left: 8,
-                        ),
-                        child: _PlaCircle(
-                          letter: option.$2,
-                          selected:
-                              mark == option.$1,
-                          color: option.$3,
-                          onTap: canEdit
-                              ? () {
-                                  setState(() {
-                                    _marks[
-                                            student.id] =
-                                        option.$1;
-                                    _submitted = false;
-                                  });
-                                }
-                              : null,
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
+                  );
+                }),
+            ],
           ),
         ),
-
         if (canEdit && roster.any((s) => !_palmMarked(s)))
           Material(
             color: AppSurface.page(context),
             child: Padding(
-              padding:
-                  const EdgeInsets.fromLTRB(
+              padding: const EdgeInsets.fromLTRB(
                 16,
                 8,
                 16,
@@ -762,21 +681,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           );
                         },
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        AppColors.headerStart,
-                    disabledBackgroundColor:
-                        AppColors.headerMid,
+                    backgroundColor: AppColors.headerStart,
+                    disabledBackgroundColor: AppColors.headerMid,
                     foregroundColor: Colors.white,
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: Text(
-                    _submitted
-                        ? 'Submitted to admin'
-                        : 'Save attendance',
+                    _submitted ? 'Submitted to admin' : 'Save attendance',
                     style: AppText.body(
                       size: 16,
                       weight: FontWeight.w800,
@@ -802,10 +715,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   ) async {
     final marks = {
       for (final student in roster)
-        if (!_palmMarked(student))
-        student.id: _marks[student.id] == 'excused'
-            ? 'absent'
-            : (_marks[student.id] ?? 'present'),
+        if (!_palmMarked(student)) student.id: _marks[student.id] == 'excused' ? 'absent' : (_marks[student.id] ?? 'present'),
     };
 
     // SchoolStore.saveAttendance posts to the real `/attendance/class-register`
@@ -847,9 +757,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     final child = store.focusedChild(Role.parent);
 
-    final rows = child == null
-        ? const <Map<String, dynamic>>[]
-        : store.attendanceRowsFor(child.id);
+    final rows = child == null ? const <Map<String, dynamic>>[] : store.attendanceRowsFor(child.id);
 
     var present = 0;
     var late = 0;
@@ -858,14 +766,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     var leftEarly = 0;
 
     for (final row in rows) {
-      final status =
-          '${row['status'] ?? ''}'.toLowerCase();
+      final status = '${row['status'] ?? ''}'.toLowerCase();
 
       if (status == 'late') {
         late++;
-      } else if (status == 'excused' ||
-          status == 'authorized_absence' ||
-          status == 'excuse') {
+      } else if (status == 'excused' || status == 'authorized_absence' || status == 'excuse') {
         excused++;
       } else if (status == 'absent') {
         absent++;
@@ -876,17 +781,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       }
     }
 
-    final total =
-        present + late + absent + excused + leftEarly;
+    final total = present + late + absent + excused + leftEarly;
 
     final pct = child == null
         ? 0
         : total == 0
             ? child.attendance
-            : ((present + late + leftEarly) /
-                    total *
-                    100)
-                .round();
+            : ((present + late + leftEarly) / total * 100).round();
 
     return Column(
       children: [
@@ -894,27 +795,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           title: 'Attendance',
           onBack: widget.onBack,
         ),
-
         if (_apiLoading)
           const LinearProgressIndicator(
             minHeight: 2,
           ),
-
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadLiveAttendance,
             child: ListView(
-              physics:
-                  const AlwaysScrollableScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: AppLayout.page(context),
               children: [
                 if (_apiFailed)
                   _ApiWarning(
-                    message: _apiError ??
-                        'Unable to load live attendance.',
+                    message: _apiError ?? 'Unable to load live attendance.',
                     onRetry: _loadLiveAttendance,
                   ),
-
                 if (child != null) ...[
                   Text(
                     '${child.name}${child.klass.isEmpty ? '' : ' · ${child.klass}'}',
@@ -932,14 +828,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-
                 Center(
                   child: SizedBox(
                     width: 168,
                     height: 168,
                     child: CustomPaint(
-                      painter:
-                          _RingPainter(
+                      painter: _RingPainter(
                         pct.clamp(0, 100) / 100,
                       ),
                       child: Center(
@@ -954,16 +848,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 18),
-
                 Builder(builder: (context) {
                   // Same term-scoped figures as the parent home's grid.
                   final term = child == null ? null : store.attendanceTermSummaryFor(child.id);
                   return AttendanceStatGrid(
-                    totalLabel: term == null
-                        ? '$total days recorded'
-                        : '${term.totalDays} days recorded · ${store.currentTermLabel}',
+                    totalLabel: term == null ? '$total days recorded' : '${term.totalDays} days recorded · ${store.currentTermLabel}',
                     stats: [
                       (label: 'Present', value: term?.onTime ?? present, icon: Icons.check_circle_rounded, color: const Color(0xFF1B5E20)),
                       (label: 'Absent', value: term?.absent ?? absent, icon: Icons.cancel_rounded, color: AppColors.rose),
@@ -972,9 +862,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     ],
                   );
                 }),
-
                 const SizedBox(height: 22),
-
                 Text(
                   'Recent days',
                   style: AppText.display(
@@ -982,44 +870,32 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     weight: FontWeight.w700,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 if (rows.isEmpty)
                   WhiteCard(
-                    padding:
-                        const EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(14),
                     child: Text(
-                      child == null
-                          ? 'No linked child yet.'
-                          : 'No attendance days recorded yet.',
+                      child == null ? 'No linked child yet.' : 'No attendance days recorded yet.',
                       style: AppText.body(
                         size: 13,
-                        color:
-                            AppColors.slate500,
+                        color: AppColors.slate500,
                       ),
                     ),
                   )
                 else
-                  for (final row
-                      in rows.take(14))
+                  for (final row in rows.take(14))
                     Padding(
-                      padding:
-                          const EdgeInsets.only(
+                      padding: const EdgeInsets.only(
                         bottom: 4,
                       ),
                       child: Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
+                        padding: const EdgeInsets.symmetric(
                           vertical: 12,
                         ),
-                        decoration:
-                            const BoxDecoration(
+                        decoration: const BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
-                              color:
-                                  AppColors.border,
+                              color: AppColors.border,
                             ),
                           ),
                         ),
@@ -1030,39 +906,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 _dayLabel(
                                   '${row['date'] ?? ''}',
                                 ),
-                                style:
-                                    AppText.body(
+                                style: AppText.body(
                                   size: 14,
-                                  weight:
-                                      FontWeight.w600,
+                                  weight: FontWeight.w600,
                                 ),
                               ),
                             ),
-
                             Text(
                               _timeLabel(
                                 '${row['check_in_at'] ?? ''}',
                               ),
-                              style:
-                                  AppText.body(
+                              style: AppText.body(
                                 size: 13,
-                                color:
-                                    AppColors
-                                        .slate500,
+                                color: AppColors.slate500,
                               ),
                             ),
-
                             const SizedBox(
                               width: 10,
                             ),
-
                             StatusDot(
-                              label:
-                                  _statusLabel(
+                              label: _statusLabel(
                                 '${row['status'] ?? 'present'}',
                               ),
-                              color:
-                                  _statusColor(
+                              color: _statusColor(
                                 '${row['status'] ?? 'present'}',
                               ),
                             ),
@@ -1122,11 +988,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     if (d == null) return '';
 
-    final h =
-        d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
 
-    final m =
-        d.minute.toString().padLeft(2, '0');
+    final m = d.minute.toString().padLeft(2, '0');
 
     return '$h:$m ${d.hour >= 12 ? 'PM' : 'AM'}';
   }
@@ -1140,9 +1004,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     if (s == 'absent') return 'Absent';
 
-    if (s == 'excused' ||
-        s == 'authorized_absence' ||
-        s == 'excuse') {
+    if (s == 'excused' || s == 'authorized_absence' || s == 'excuse') {
       return 'Excuse';
     }
 
@@ -1160,9 +1022,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return AppColors.rose;
     }
 
-    if (s == 'excused' ||
-        s == 'authorized_absence' ||
-        s == 'excuse') {
+    if (s == 'excused' || s == 'authorized_absence' || s == 'excuse') {
       return AppColors.sky;
     }
 
@@ -1179,16 +1039,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return _parentView(context);
     }
 
-    if (widget.role == Role.teacher ||
-        widget.role.isAdminPortal) {
+    if (widget.role == Role.teacher || widget.role.isAdminPortal) {
       if (!_classChosen) {
         return _classPicker(context);
       }
 
       final user = widget.user;
 
-      final canEdit =
-          widget.role == Role.teacher &&
+      final canEdit = widget.role == Role.teacher &&
           user != null &&
           SchoolScope.of(context).canMarkAttendance(
             user,
@@ -1210,13 +1068,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     final roster = _roster(store);
 
-    final title = widget.role == Role.teacher
-        ? (_klass.isEmpty
-            ? 'Attendance'
-            : _klass)
-        : (_canSubmit
-            ? 'Take Attendance'
-            : 'View Attendance');
+    final title = widget.role == Role.teacher ? (_klass.isEmpty ? 'Attendance' : _klass) : (_canSubmit ? 'Take Attendance' : 'View Attendance');
 
     final today = DateTime.now();
 
@@ -1235,8 +1087,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       'Dec',
     ];
 
-    final dateStr =
-        '${today.day} ${months[today.month - 1]} ${today.year}';
+    final dateStr = '${today.day} ${months[today.month - 1]} ${today.year}';
 
     final subtitle = _boardersOnly
         ? '${roster.length} boarders · $dateStr'
@@ -1247,51 +1098,33 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return Column(
       children: [
         AdminPageHeader(
-          title: widget.role == Role.teacher
-              ? (_klass.isEmpty
-                  ? 'Attendance'
-                  : _klass)
-              : title,
-          subtitle:
-              widget.role == Role.teacher
-                  ? 'Take attendance for today'
-                  : subtitle,
-          onBack:
-              widget.role == Role.teacher
-                  ? () => setState(
-                        () =>
-                            _classChosen =
-                                false,
-                      )
-                  : widget.onBack,
+          title: widget.role == Role.teacher ? (_klass.isEmpty ? 'Attendance' : _klass) : title,
+          subtitle: widget.role == Role.teacher ? 'Take attendance for today' : subtitle,
+          onBack: widget.role == Role.teacher
+              ? () => setState(
+                    () => _classChosen = false,
+                  )
+              : widget.onBack,
         ),
-
         if (_apiLoading)
           const LinearProgressIndicator(
             minHeight: 2,
           ),
-
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadLiveAttendance,
             child: ListView(
-              physics:
-                  const AlwaysScrollableScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: AppLayout.page(context),
               children: [
                 if (_apiFailed)
                   _ApiWarning(
-                    message: _apiError ??
-                        'Unable to load live attendance.',
-                    onRetry:
-                        _loadLiveAttendance,
+                    message: _apiError ?? 'Unable to load live attendance.',
+                    onRetry: _loadLiveAttendance,
                   ),
-
-                if (widget.role != Role.teacher &&
-                    !_canSubmit) ...[
+                if (widget.role != Role.teacher && !_canSubmit) ...[
                   WhiteCard(
-                    padding:
-                        const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
                         const AppIcon(
@@ -1303,8 +1136,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             'Admin can review class attendance. Teachers submit the roll.',
                             style: AppText.body(
                               size: 12,
-                              color:
-                                  AppColors.slate500,
+                              color: AppColors.slate500,
                             ),
                           ),
                         ),
@@ -1313,10 +1145,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
-
-                if (widget.role != Role.teacher &&
-                    !_boardersOnly &&
-                    store.classNames.isNotEmpty)
+                if (widget.role != Role.teacher && !_boardersOnly && store.classNames.isNotEmpty)
                   AdminDropdown(
                     label: 'Class',
                     value: _klass,
@@ -1330,7 +1159,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       _loadLiveAttendance();
                     },
                   ),
-
                 AttendanceStatGrid(
                   totalLabel: '${roster.length} on this roster',
                   stats: [
@@ -1340,48 +1168,33 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     (label: 'Excused', value: _count('excused'), icon: Icons.event_busy_rounded, color: AppColors.sky),
                   ],
                 ),
-
                 const SizedBox(height: 14),
-
                 if (_canSubmit) ...[
                   OutlinedButton(
                     onPressed: () {
                       setState(() {
                         _marks = {
-                          for (final student
-                              in roster)
-                            student.id:
-                                'present',
+                          for (final student in roster) student.id: 'present',
                         };
                       });
                     },
-                    style:
-                        OutlinedButton.styleFrom(
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
                         vertical: 14,
                       ),
-                      side:
-                          const BorderSide(
-                        color:
-                            Color(0xFF6EE7B7),
+                      side: const BorderSide(
+                        color: Color(0xFF6EE7B7),
                         width: 2,
                       ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius
-                                .circular(12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     child: Text(
                       'Mark All Present',
                       style: AppText.body(
-                        weight:
-                            FontWeight.w700,
-                        color:
-                            const Color(
+                        weight: FontWeight.w700,
+                        color: const Color(
                           0xFF047857,
                         ),
                       ),
@@ -1389,80 +1202,55 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
-
                 GridView.builder(
                   shrinkWrap: true,
-                  physics:
-                      const NeverScrollableScrollPhysics(),
+                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: roster.length,
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
                     mainAxisExtent: 138,
                   ),
-                  itemBuilder:
-                      (context, i) {
-                    final student =
-                        roster[i];
+                  itemBuilder: (context, i) {
+                    final student = roster[i];
 
-                    final mark =
-                        _marks[student.id] ??
-                            'present';
+                    final mark = _marks[student.id] ?? 'present';
 
                     return WhiteCard(
-                      padding:
-                          const EdgeInsets
-                              .fromLTRB(
+                      padding: const EdgeInsets.fromLTRB(
                         10,
                         10,
                         10,
                         8,
                       ),
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             student.name,
                             maxLines: 1,
-                            overflow:
-                                TextOverflow
-                                    .ellipsis,
-                            style:
-                                AppText.body(
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.body(
                               size: 12,
-                              weight:
-                                  FontWeight
-                                      .w700,
+                              weight: FontWeight.w700,
                             ),
                           ),
-
                           Text(
                             student.klass,
                             maxLines: 1,
-                            overflow:
-                                TextOverflow
-                                    .ellipsis,
-                            style:
-                                AppText.body(
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.body(
                               size: 10,
-                              color:
-                                  AppColors
-                                      .slate400,
+                              color: AppColors.slate400,
                             ),
                           ),
-
                           const Spacer(),
-
                           Wrap(
                             spacing: 4,
                             runSpacing: 4,
                             children: [
-                              for (final option
-                                  in const [
+                              for (final option in const [
                                 (
                                   'present',
                                   'Present',
@@ -1481,21 +1269,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 ),
                               ])
                                 _MarkChip(
-                                  label:
-                                      option
-                                          .$2,
-                                  selected:
-                                      mark ==
-                                          option
-                                              .$1,
-                                  enabled:
-                                      _canSubmit,
+                                  label: option.$2,
+                                  selected: mark == option.$1,
+                                  enabled: _canSubmit,
                                   onTap: () {
                                     setState(() {
-                                      _marks[
-                                              student
-                                                  .id] =
-                                          option.$1;
+                                      _marks[student.id] = option.$1;
                                     });
                                   },
                                 ),
@@ -1506,14 +1285,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     );
                   },
                 ),
-
                 const SizedBox(height: 12),
-
                 if (_canSubmit)
                   if (!_submitted)
                     HoneyButton(
-                      label:
-                          'Submit Attendance',
+                      label: 'Submit Attendance',
                       onPressed: () async {
                         await _submitAttendance(
                           context,
@@ -1524,22 +1300,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     )
                   else
                     Container(
-                      padding:
-                          const EdgeInsets.all(
+                      padding: const EdgeInsets.all(
                         20,
                       ),
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            const Color(
+                      decoration: BoxDecoration(
+                        color: const Color(
                           0xFFECFDF5,
                         ),
-                        borderRadius:
-                            BorderRadius
-                                .circular(16),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color:
-                              const Color(
+                          color: const Color(
                             0xFF6EE7B7,
                           ),
                           width: 2,
@@ -1549,30 +1319,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         children: [
                           const AppIcon(
                             Icons.check_rounded,
-                            size:
-                                AppIconSize.card,
+                            size: AppIconSize.card,
                           ),
                           const SizedBox(
                             height: 8,
                           ),
                           Text(
                             'Attendance Recorded!',
-                            style:
-                                AppText.display(
+                            style: AppText.display(
                               size: 18,
-                              color:
-                                  const Color(
+                              color: const Color(
                                 0xFF047857,
                               ),
                             ),
                           ),
                           Text(
                             'Parents have been notified automatically',
-                            style:
-                                AppText.body(
+                            style: AppText.body(
                               size: 14,
-                              color:
-                                  const Color(
+                              color: const Color(
                                 0xFF059669,
                               ),
                             ),
@@ -1585,6 +1350,34 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A soft tinted note with an icon, used for the roll's explanations.
+class _InfoNote extends StatelessWidget {
+  const _InfoNote({required this.icon, required this.color, required this.text});
+
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: AppText.body(size: 12.5, color: AppSurface.ink(context)))),
+        ],
+      ),
     );
   }
 }
@@ -1605,20 +1398,15 @@ class _ApiWarning extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         width: double.infinity,
-        padding:
-            const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.rose
-              .withValues(alpha: 0.08),
-          borderRadius:
-              BorderRadius.circular(12),
+          color: AppColors.rose.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppColors.rose
-                .withValues(alpha: 0.20),
+            color: AppColors.rose.withValues(alpha: 0.20),
           ),
         ),
         child: Row(
@@ -1668,26 +1456,19 @@ class _RingPainter extends CustomPainter {
       size.height / 2,
     );
 
-    final radius =
-        size.width / 2 - 10;
+    final radius = size.width / 2 - 10;
 
     final track = Paint()
-      ..color =
-          const Color(0xFFE8F5E9)
-      ..style =
-          PaintingStyle.stroke
+      ..color = const Color(0xFFE8F5E9)
+      ..style = PaintingStyle.stroke
       ..strokeWidth = 12
-      ..strokeCap =
-          StrokeCap.round;
+      ..strokeCap = StrokeCap.round;
 
     final fill = Paint()
-      ..color =
-          const Color(0xFF1B5E20)
-      ..style =
-          PaintingStyle.stroke
+      ..color = const Color(0xFF1B5E20)
+      ..style = PaintingStyle.stroke
       ..strokeWidth = 12
-      ..strokeCap =
-          StrokeCap.round;
+      ..strokeCap = StrokeCap.round;
 
     canvas.drawCircle(
       center,
@@ -1701,8 +1482,7 @@ class _RingPainter extends CustomPainter {
         radius: radius,
       ),
       -1.5708,
-      6.2832 *
-          progress.clamp(0, 1),
+      6.2832 * progress.clamp(0, 1),
       false,
       fill,
     );
@@ -1712,8 +1492,7 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(
     covariant _RingPainter oldDelegate,
   ) {
-    return oldDelegate.progress !=
-        progress;
+    return oldDelegate.progress != progress;
   }
 }
 
@@ -1739,28 +1518,20 @@ class _MarkChip extends StatelessWidget {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
           horizontal: 6,
           vertical: 3,
         ),
-        decoration:
-            BoxDecoration(
-          color: selected
-              ? AppColors.honey
-              : AppColors.slate100,
-          borderRadius:
-              BorderRadius.circular(99),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.honey : AppColors.slate100,
+          borderRadius: BorderRadius.circular(99),
         ),
         child: Text(
           label,
           style: AppText.body(
             size: 9,
-            weight:
-                FontWeight.w700,
-            color: selected
-                ? Colors.white
-                : AppColors.slate600,
+            weight: FontWeight.w700,
+            color: selected ? Colors.white : AppColors.slate600,
           ),
         ),
       ),
@@ -1802,8 +1573,7 @@ class _SoftAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone =
-        _tints[index % _tints.length];
+    final tone = _tints[index % _tints.length];
 
     final initials = name
         .split(' ')
@@ -1818,20 +1588,16 @@ class _SoftAvatar extends StatelessWidget {
     return Container(
       width: 40,
       height: 40,
-      alignment:
-          Alignment.center,
-      decoration:
-          BoxDecoration(
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
         color: tone.$1,
-        shape:
-            BoxShape.circle,
+        shape: BoxShape.circle,
       ),
       child: Text(
         initials,
         style: AppText.body(
           size: 12,
-          weight:
-              FontWeight.w800,
+          weight: FontWeight.w800,
           color: tone.$2,
         ),
       ),
@@ -1863,33 +1629,23 @@ class _PlaCircle extends StatelessWidget {
       child: Container(
         width: 32,
         height: 32,
-        alignment:
-            Alignment.center,
-        decoration:
-            BoxDecoration(
-          color: selected
-              ? color
-              : Colors.transparent,
-          shape:
-              BoxShape.circle,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.transparent,
+          shape: BoxShape.circle,
         ),
         child: Text(
           letter,
           style: AppText.body(
             size: 13,
-            weight:
-                FontWeight.w800,
-            color: selected
-                ? Colors.white
-                : AppColors.slate400,
+            weight: FontWeight.w800,
+            color: selected ? Colors.white : AppColors.slate400,
           ),
         ),
       ),
     );
   }
 }
-
-
 
 /// A day student's palm-scan result for today (read-only).
 class _PalmChip extends StatelessWidget {

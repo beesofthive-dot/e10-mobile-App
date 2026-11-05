@@ -75,13 +75,13 @@ class DashCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           splashColor: AppSurface.brand(context).withValues(alpha: 0.12),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: night ? iconColor.withValues(alpha: 0.2) : iconColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
@@ -103,22 +103,24 @@ class DashCard extends StatelessWidget {
                             label,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppText.body(size: 12, weight: FontWeight.w600, color: AppSurface.ink(context)),
+                            style: AppText.body(size: 12.5, weight: FontWeight.w600, color: AppSurface.muted(context)),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           CountUpText(
                             value,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppText.display(size: 20, weight: FontWeight.w800, color: AppSurface.ink(context)),
+                            style: AppText.display(size: 24, weight: FontWeight.w800, color: AppSurface.ink(context)),
                           ),
-                          if (hint != null && hint!.isNotEmpty)
+                          if (hint != null && hint!.isNotEmpty) ...[
+                            const SizedBox(height: 4),
                             Text(
                               hint!,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: AppText.body(size: 12, weight: FontWeight.w600, color: AppSurface.ink(context)),
+                              style: AppText.body(size: 11.5, weight: FontWeight.w600, color: night ? AppSurface.muted(context) : (hintColor ?? AppSurface.muted(context))),
                             ),
+                          ],
                         ],
                       ),
                     ),
