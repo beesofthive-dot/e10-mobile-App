@@ -17,6 +17,37 @@ import 'admin_forms.dart' show showSnack;
 /// (`/staff?clocks_in=1`), their palm clock-in/out from
 /// `/attendance?person_type=staff`, and "Mark staff attendance"
 /// (`/attendance/manual`), which shows on the website straight away.
+/// Everyone who clocks in (teachers and other staff), as the website lists
+/// (`/staff?clocks_in=1`, every page); null when the request failed.
+Future<List<NamedRecord>?> loadClockingStaff() async {
+  try {
+    final query = {'clocks_in': '1', 'status': 'active', 'per_page': '100'};
+    final body = await ApiClient.instance.get(ApiConfig.staffPath, query: query);
+    final first = body is Map ? body['data'] : null;
+    if (first is! List) return null;
+    // The server caps a page; read every page so no staff member is missing.
+    final data = [...first];
+    final meta = body is Map ? body['meta'] : null;
+    final lastPage = meta is Map ? int.tryParse('${meta['last_page'] ?? 1}') ?? 1 : 1;
+    for (var page = 2; page <= lastPage && page <= 20; page++) {
+      final more = await ApiClient.instance.get(ApiConfig.staffPath, query: {...query, 'page': '$page'});
+      if (more is Map && more['data'] is List) data.addAll(more['data'] as List);
+    }
+    return [
+      for (final r in data)
+        if (r is Map)
+          NamedRecord(
+            id: '${r['id']}',
+            name: '${r['full_name'] ?? r['name'] ?? ''}',
+            detail: '${r['position'] ?? r['category'] ?? ''}',
+            extra: r['department'] is Map ? '${(r['department'] as Map)['name'] ?? ''}' : '${r['department'] ?? ''}',
+          ),
+    ];
+  } catch (_) {
+    return null;
+  }
+}
+
 class StaffAttendanceScreen extends StatefulWidget {
   const StaffAttendanceScreen({super.key, this.onBack});
 
@@ -84,34 +115,9 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
     });
   }
 
-  /// Everyone who clocks in (teachers and other staff), as the website lists.
   Future<void> _loadClockers() async {
-    try {
-      final query = {'clocks_in': '1', 'status': 'active', 'per_page': '100'};
-      final body = await ApiClient.instance.get(ApiConfig.staffPath, query: query);
-      final first = body is Map ? body['data'] : null;
-      if (first is! List) return;
-      // The server caps a page; read every page so no staff member is missing.
-      final data = [...first];
-      final meta = body is Map ? body['meta'] : null;
-      final lastPage = meta is Map ? int.tryParse('${meta['last_page'] ?? 1}') ?? 1 : 1;
-      for (var page = 2; page <= lastPage && page <= 20; page++) {
-        final more = await ApiClient.instance.get(ApiConfig.staffPath, query: {...query, 'page': '$page'});
-        if (more is Map && more['data'] is List) data.addAll(more['data'] as List);
-      }
-      _clockers = [
-        for (final r in data)
-          if (r is Map)
-            NamedRecord(
-              id: '${r['id']}',
-              name: '${r['full_name'] ?? r['name'] ?? ''}',
-              detail: '${r['position'] ?? r['category'] ?? ''}',
-              extra: r['department'] is Map ? '${(r['department'] as Map)['name'] ?? ''}' : '${r['department'] ?? ''}',
-            ),
-      ];
-    } catch (_) {
-      // Keep the school's teachers list.
-    }
+    final list = await loadClockingStaff();
+    if (list != null) _clockers = list;
   }
 
   Future<void> _mark() async {
@@ -204,20 +210,15 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
       list.sort((a, b) => a.name.compareTo(b.name));
     }
 
-    var onTimeCount = 0, lateCount = 0, earlyCount = 0, outCount = 0;
+    var presentCount = 0, outCount = 0;
     for (final t in people) {
       switch (_state(_byStaff[t.id])) {
-        case 'in':
-          onTimeCount++;
-        case 'early':
-          earlyCount++;
-        case 'late':
-          lateCount++;
+        case 'in' || 'early' || 'late':
+          presentCount++;
         default:
           outCount++;
       }
     }
-    final presentCount = onTimeCount + lateCount + earlyCount;
 
     return ColoredBox(
       color: AppSurface.page(context),
@@ -253,16 +254,6 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                       _Tile(label: 'Staff present', value: presentCount, color: AppColors.emerald),
                       const SizedBox(width: 10),
                       _Tile(label: _isToday ? 'Not clocked in' : 'Absent', value: outCount, color: AppColors.rose),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      _Tile(label: 'On time', value: onTimeCount, color: AppColors.emerald),
-                      const SizedBox(width: 10),
-                      _Tile(label: 'Came late', value: lateCount, color: AppColors.honeyDark),
-                      const SizedBox(width: 10),
-                      _Tile(label: 'Left early', value: earlyCount, color: AppColors.violet),
                     ],
                   ),
                   const SizedBox(height: 8),

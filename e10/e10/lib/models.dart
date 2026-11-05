@@ -128,6 +128,7 @@ extension RoleFields on Role {
     if (this == Role.parent) {
       return screen != AppScreen.adminFinance &&
           screen != AppScreen.staffAttendance &&
+          screen != AppScreen.staffAnalytics &&
           screen != AppScreen.cashierCounter &&
           screen != AppScreen.feedingToday &&
           screen != AppScreen.myAttendance &&
@@ -249,6 +250,7 @@ class AppUser {
 
 enum AppScreen {
   staffAttendance,
+  staffAnalytics,
   splash,
   landing,
   login,

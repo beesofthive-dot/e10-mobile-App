@@ -22,6 +22,7 @@ import 'screens/admin_academics.dart';
 import 'screens/admin_forms.dart' show showSnack;
 import 'screens/admin_home.dart';
 import 'screens/staff_attendance_screen.dart';
+import 'screens/staff_analytics_screen.dart';
 import 'screens/subject_assignments_screen.dart';
 import 'screens/admin_manage.dart';
 import 'screens/admin_records.dart';
@@ -345,6 +346,7 @@ class _E10AppState extends State<E10App> with WidgetsBindingObserver {
           onLogout: _logout,
         ),
       AppScreen.staffAttendance => StaffAttendanceScreen(onBack: _back),
+      AppScreen.staffAnalytics => StaffAnalyticsScreen(onBack: _back),
       AppScreen.subjectAssignments => SubjectAssignmentsScreen(onBack: _back),
       AppScreen.attendance || AppScreen.teacherAttendance => AttendanceScreen(
           onBack: _back,

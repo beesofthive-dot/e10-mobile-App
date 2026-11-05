@@ -265,9 +265,8 @@ class _AdminHomeState extends State<AdminHome> {
                         iconColor: AppColors.orange,
                         label: 'Total staff',
                         value: _comma(teachers),
-                        hint: 'Staff who clock in',
                         hintColor: AppColors.orange,
-                        onTap: () => widget.onNav(AppScreen.adminTeachers),
+                        onTap: () => widget.onNav(PlanAccess.allows(AppScreen.staffAnalytics) ? AppScreen.staffAnalytics : AppScreen.adminTeachers),
                       ),
                       DashCard(
                         icon: Icons.how_to_reg_rounded,

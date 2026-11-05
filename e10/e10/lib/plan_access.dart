@@ -20,6 +20,7 @@ String? planModuleFor(AppScreen screen) => switch (screen) {
       AppScreen.attendance ||
       AppScreen.teacherAttendance ||
       AppScreen.staffAttendance ||
+      AppScreen.staffAnalytics ||
       AppScreen.departmentAttendance ||
       AppScreen.myAttendance =>
         'attendance',
