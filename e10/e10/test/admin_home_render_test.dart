@@ -22,9 +22,9 @@ void main() {
       ),
     );
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Students'), findsOneWidget);
+    expect(find.text('Total students'), findsOneWidget);
 
-    await tester.drag(find.text('Students'), const Offset(0, -600));
+    await tester.drag(find.text('Total students'), const Offset(0, -800));
     await tester.pump(const Duration(seconds: 1));
     expect(tester.takeException(), isNull);
     expect(find.text('Attendance today'), findsOneWidget);

@@ -204,17 +204,20 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
       list.sort((a, b) => a.name.compareTo(b.name));
     }
 
-    var inCount = 0, lateCount = 0, outCount = 0;
+    var onTimeCount = 0, lateCount = 0, earlyCount = 0, outCount = 0;
     for (final t in people) {
       switch (_state(_byStaff[t.id])) {
-        case 'in' || 'early':
-          inCount++;
+        case 'in':
+          onTimeCount++;
+        case 'early':
+          earlyCount++;
         case 'late':
           lateCount++;
         default:
           outCount++;
       }
     }
+    final presentCount = onTimeCount + lateCount + earlyCount;
 
     return ColoredBox(
       color: AppSurface.page(context),
@@ -245,11 +248,21 @@ class _StaffAttendanceScreenState extends State<StaffAttendanceScreen> {
                     ),
                   Row(
                     children: [
-                      _Tile(label: 'In', value: inCount, color: AppColors.emerald),
+                      _Tile(label: 'Total staff', value: people.length, color: AppColors.blue),
                       const SizedBox(width: 10),
-                      _Tile(label: 'Late', value: lateCount, color: AppColors.honeyDark),
+                      _Tile(label: 'Staff present', value: presentCount, color: AppColors.emerald),
                       const SizedBox(width: 10),
-                      _Tile(label: _isToday ? 'Not in yet' : 'Not in', value: outCount, color: AppColors.rose),
+                      _Tile(label: _isToday ? 'Not clocked in' : 'Absent', value: outCount, color: AppColors.rose),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _Tile(label: 'On time', value: onTimeCount, color: AppColors.emerald),
+                      const SizedBox(width: 10),
+                      _Tile(label: 'Came late', value: lateCount, color: AppColors.honeyDark),
+                      const SizedBox(width: 10),
+                      _Tile(label: 'Left early', value: earlyCount, color: AppColors.violet),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -347,7 +360,7 @@ class _DeptCard extends StatelessWidget {
           Row(
             children: [
               Expanded(child: Text(name, style: AppText.body(size: 15, weight: FontWeight.w800))),
-              Text('$present / ${teachers.length} in', style: AppText.body(size: 12, weight: FontWeight.w700, color: AppSurface.muted(context))),
+              Text('$present of ${teachers.length} present', style: AppText.body(size: 12, weight: FontWeight.w700, color: AppSurface.muted(context))),
             ],
           ),
           const SizedBox(height: 6),
@@ -394,9 +407,9 @@ class _StateChip extends StatelessWidget {
       'out' => ('Not scanned', AppColors.slate400),
       'absent' => ('Absent', AppColors.rose),
       'excused' => ('Excused', AppColors.sky),
-      'early' => (inAt.isEmpty ? 'Left early' : '$inAt – ${outAt.isEmpty ? '?' : outAt} · left early', AppColors.honeyDark),
-      'late' => (outAt.isEmpty ? 'Late · $inAt' : '$inAt – $outAt', AppColors.honeyDark),
-      _ => (inAt.isEmpty ? 'Present' : (outAt.isEmpty ? 'In · $inAt' : '$inAt – $outAt'), AppColors.emerald),
+      'early' => (inAt.isEmpty ? 'Left early' : '$inAt – ${outAt.isEmpty ? '?' : outAt} · left early', AppColors.violet),
+      'late' => (outAt.isEmpty ? 'Came late · $inAt' : '$inAt – $outAt', AppColors.honeyDark),
+      _ => (inAt.isEmpty ? 'Present' : (outAt.isEmpty ? 'Present · $inAt' : '$inAt – $outAt'), AppColors.emerald),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

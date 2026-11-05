@@ -207,7 +207,7 @@ void main() {
         expect(find.text('520'), findsOneWidget);
         expect(find.text('Staff present'), findsOneWidget);
         expect(find.text('33'), findsOneWidget);
-        expect(find.text('of 40 today'), findsOneWidget);
+        expect(find.text('Today · of 40 staff'), findsOneWidget);
       }, () => MockClient((r) async => _reply(r)));
     });
 

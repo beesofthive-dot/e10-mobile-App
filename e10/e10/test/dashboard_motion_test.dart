@@ -28,7 +28,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byType(DashboardSkeleton), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(find.text('Students'), findsNothing);
+    expect(find.text('Total students'), findsNothing);
 
     store
       ..loading = false
@@ -39,7 +39,7 @@ void main() {
     }
     expect(find.byType(DashboardSkeleton), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
-    expect(find.text('Students'), findsOneWidget);
+    expect(find.text('Total students'), findsOneWidget);
   });
 
   testWidgets('numbers count up and land on the exact value and format', (tester) async {

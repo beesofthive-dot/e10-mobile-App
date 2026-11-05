@@ -139,7 +139,7 @@ void main() {
       await _open(tester, user, AppScreen.adminHome);
       expect(find.text('Transactions'), findsNothing);
       expect(find.text('Fees in'), findsNothing);
-      expect(find.text('In today'), findsOneWidget);
+      expect(find.text('Students present'), findsOneWidget);
     });
 
     for (final role in [Role.schoolAdmin, Role.parent, Role.teacher]) {
