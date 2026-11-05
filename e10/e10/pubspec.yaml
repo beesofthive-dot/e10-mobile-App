@@ -2,7 +2,7 @@ name: e10
 description: e10 School Systems by BeeSoft Hive
 publish_to: 'none'
 
-version: 1.0.34+51
+version: 1.0.35+52
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
