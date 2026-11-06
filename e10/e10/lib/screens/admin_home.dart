@@ -333,6 +333,16 @@ class _AdminHomeState extends State<AdminHome> {
                         hintColor: AppColors.orange,
                         onTap: () => widget.onNav(AppScreen.adminClasses),
                       ),
+                      DashCard(
+                        icon: Icons.badge_rounded,
+                        tint: const Color(0xFFE0F2FE),
+                        iconColor: AppColors.blue,
+                        label: 'Staff',
+                        value: _comma(store.tableRows('staff').length),
+                        hint: 'Staff details',
+                        hintColor: AppColors.blue,
+                        onTap: () => widget.onNav(AppScreen.adminStaff),
+                      ),
                   ]),
                   const SizedBox(height: 22),
                   if (PlanAccess.allows(AppScreen.staffAttendance)) ...[

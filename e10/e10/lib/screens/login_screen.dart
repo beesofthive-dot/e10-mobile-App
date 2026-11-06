@@ -42,6 +42,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _obscure = true;
   bool _busy = false;
   bool _codeSent = false;
+
+  /// Seconds until "Resend code" can be tapped again (0 = ready).
+  int _resendIn = 0;
+  Timer? _resendTimer;
   // Staff sign in with a one-time code by default, same as the website;
   // password stays one tap away.
   bool _staffUseOtc = true;
@@ -137,6 +141,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _entrance.dispose();
     _email.dispose();
     _password.dispose();
@@ -249,6 +254,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             _codeSent = true;
             _info = result.info;
             if (result.otc != null && result.otc!.isNotEmpty) _code.text = result.otc!;
+            _startResendCooldown();
           }
         });
         return;
@@ -289,6 +295,99 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   // ==============================================================
+  // RESEND CODE
+  // ==============================================================
+  //
+  // Asks the same request-code endpoint again (guardian phone or staff
+  // email/phone), keeping what the person typed. A 30 s wait between sends
+  // stops repeated taps from flooding their phone or hitting the server's
+  // rate limit.
+
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    _resendIn = 30;
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() => _resendIn = _resendIn > 0 ? _resendIn - 1 : 0);
+      if (_resendIn == 0) t.cancel();
+    });
+  }
+
+  void _stopResendCooldown() {
+    _resendTimer?.cancel();
+    _resendIn = 0;
+  }
+
+  Future<void> _resendCode() async {
+    if (_busy || _resendIn > 0) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _busy = true;
+      _error = null;
+      _info = null;
+    });
+    try {
+      final result = _isParent ? await Auth.guardianCode(_phone.text.trim()) : await Auth.staffCode(_email.text);
+      if (!mounted) return;
+      setState(() {
+        if (result.error != null) {
+          _error = result.error;
+        } else {
+          _code.clear();
+          _info = (result.info == null || result.info!.isEmpty) ? 'A new code has been sent.' : result.info;
+          if (result.otc != null && result.otc!.isNotEmpty) _code.text = result.otc!;
+          _startResendCooldown();
+        }
+      });
+    } on TimeoutException {
+      if (mounted) setState(() => _error = 'Could not send a new code. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _codeActions(String differentLabel) => Row(
+        children: [
+          TextButton(
+            onPressed: _busy || _resendIn > 0 ? null : _resendCode,
+            child: Text(
+              _resendIn > 0 ? 'Resend code in ${_resendIn}s' : 'Resend code',
+              style: AppText.body(
+                size: 12,
+                weight: FontWeight.w600,
+                color: _busy || _resendIn > 0 ? AppColors.slate400 : AppColors.honey,
+              ),
+            ),
+          ),
+          const Spacer(),
+          Flexible(
+            child: TextButton(
+              onPressed: _busy
+                  ? null
+                  : () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      setState(() {
+                        _codeSent = false;
+                        _stopResendCooldown();
+                        _code.clear();
+                        _info = null;
+                        _error = null;
+                      });
+                    },
+              child: Text(
+                differentLabel,
+                textAlign: TextAlign.end,
+                style: AppText.body(size: 12, weight: FontWeight.w600, color: AppColors.honey),
+              ),
+            ),
+          ),
+        ],
+      );
+
+  // ==============================================================
   // PARENT OTC
   // ==============================================================
   //
@@ -320,6 +419,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         } else {
           _codeSent = true;
           _info = result.info;
+          _startResendCooldown();
 
           if (result.otc != null &&
               result.otc!.isNotEmpty) {
@@ -768,45 +868,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 !_busy,
                           ),
 
-                          Align(
-                            alignment:
-                                Alignment
-                                    .centerRight,
-                            child:
-                                TextButton(
-                              onPressed:
-                                  _busy
-                                      ? null
-                                      : () {
-                                          FocusManager.instance.primaryFocus?.unfocus();
-                                          setState(
-                                            () {
-                                              _codeSent =
-                                                  false;
-                                              _code
-                                                  .clear();
-                                              _info =
-                                                  null;
-                                              _error =
-                                                  null;
-                                            },
-                                          );
-                                        },
-                              child: Text(
-                                'Use a different number',
-                                style:
-                                    AppText.body(
-                                  size: 12,
-                                  weight:
-                                      FontWeight
-                                          .w600,
-                                  color:
-                                      AppColors
-                                          .honey,
-                                ),
-                              ),
-                            ),
-                          ),
+                          _codeActions('Use a different number'),
                         ],
                       ] else ...[
                         Row(
@@ -873,26 +935,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             keyboard: TextInputType.number,
                             enabled: !_busy,
                           ),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: _busy
-                                  ? null
-                                  : () {
-                                      FocusManager.instance.primaryFocus?.unfocus();
-                                      setState(() {
-                                        _codeSent = false;
-                                        _code.clear();
-                                        _info = null;
-                                        _error = null;
-                                      });
-                                    },
-                              child: Text(
-                                'Use a different email or phone',
-                                style: AppText.body(size: 12, weight: FontWeight.w600, color: AppColors.honey),
-                              ),
-                            ),
-                          ),
+                          _codeActions('Use a different email or phone'),
                         ] else if (!_staffUseOtc) ...[
                           _UnderlineField(
                             label: 'PASSWORD',

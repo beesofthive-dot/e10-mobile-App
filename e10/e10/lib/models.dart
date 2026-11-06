@@ -129,6 +129,7 @@ extension RoleFields on Role {
       return screen != AppScreen.adminFinance &&
           screen != AppScreen.staffAttendance &&
           screen != AppScreen.staffAnalytics &&
+          screen != AppScreen.adminStaff &&
           screen != AppScreen.cashierCounter &&
           screen != AppScreen.feedingToday &&
           screen != AppScreen.myAttendance &&
@@ -279,6 +280,7 @@ enum AppScreen {
   adminManage,
   adminRoles,
   adminTeachers,
+  adminStaff,
   subjectAssignments,
   adminAccountants,
   adminParents,

@@ -38,6 +38,7 @@ class AdminManageScreen extends StatelessWidget {
     (
       'People',
       [
+        _Module('All staff', 'Everyone & their details', Icons.badge_outlined, AppScreen.adminStaff),
         _Module('Teachers', 'Staff directory', Icons.school_outlined, AppScreen.adminTeachers),
         _Module('Subject assignments', 'Who teaches what, where', Icons.assignment_ind_outlined, AppScreen.subjectAssignments),
         _Module('Staff', 'Billing staff', Icons.badge_outlined, AppScreen.adminAccountants),
